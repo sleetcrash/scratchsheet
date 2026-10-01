@@ -1,0 +1,45 @@
+{
+  "name": "scratchsheet",
+  "version": "0.1.0",
+  "description": "Floating always-on-top spreadsheet post-it for quick math",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite build && electron .",
+    "build": "vite build && electron-builder --win dir",
+    "start": "electron .",
+    "icon": "node build/make-icon.js",
+    "test": "node test/cdp-smoke.js"
+  },
+  "keywords": [],
+  "author": "PatientBird",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.3.1"
+  },
+  "dependencies": {
+    "@univerjs/preset-sheets-core": "^1.0.3",
+    "@univerjs/presets": "^1.0.3",
+    "exceljs": "^4.4.0"
+  },
+  "productName": "Scratch Sheet",
+  "private": true,
+  "build": {
+    "appId": "com.patientbird.scratchsheet",
+    "productName": "Scratch Sheet",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**",
+      "dist/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "dir"
+    }
+  }
+}

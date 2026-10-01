@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scratch Sheet</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header id="titlebar">
+    <div class="tb-left">
+      <span class="tb-logo" aria-hidden="true"></span>
+      <span class="tb-title">Scratch Sheet</span>
+    </div>
+    <div class="tb-tools">
+      <button id="btn-bold" class="tb-btn" title="Bold (Ctrl+B)"><b>B</b></button>
+      <div class="tb-group">
+        <button id="btn-fill" class="tb-btn" title="Highlight selection">
+          <span class="fill-icon"><span id="fill-swatch" class="fill-swatch"></span></span>
+        </button>
+        <button id="btn-fill-more" class="tb-btn tb-caret" title="Pick highlight color">&#9662;</button>
+        <div id="fill-palette" class="palette" hidden></div>
+      </div>
+      <span class="tb-sep"></span>
+      <button id="btn-copy" class="tb-btn tb-text" title="Copy everything on the sheet">Copy all</button>
+      <button id="btn-save" class="tb-btn tb-text" title="Save as .xlsx">Save</button>
+      <button id="btn-clear" class="tb-btn tb-text tb-danger" title="Clear the whole sheet">Clear</button>
+    </div>
+    <div class="tb-right">
+      <button id="btn-pin" class="tb-btn tb-win" title="Always on top">&#9650;</button>
+      <button id="btn-min" class="tb-btn tb-win" title="Hide to tray">&#8211;</button>
+      <button id="btn-close" class="tb-btn tb-win tb-close" title="Hide to tray">&#10005;</button>
+    </div>
+  </header>
+  <div id="toast" hidden></div>
+  <main id="sheet"></main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
