@@ -1,5 +1,6 @@
 // Scratch Sheet - renderer
-// Univer grid + a thin toolbar. Autosaves every change to disk through the preload bridge.
+// Univer grid + its formatting toolbar, plus a thin title bar. Autosaves every change to disk
+// through the preload bridge.
 
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
@@ -12,11 +13,50 @@ const SHEET_ID = 'sheet1';
 const ROWS = 1000;
 const COLS = 26;
 
-const HIGHLIGHTS = [
-  '#fde68a', '#fca5a5', '#86efac', '#93c5fd', '#d8b4fe',
-  '#fdba74', '#f9a8d4', '#5eead4', '#cbd5e1', null,
+// Gridline colors tuned so cell borders are clearly visible on each theme.
+const GRIDLINES = { dark: '#4b5563', light: '#c3c8d0' };
+const SET_GRIDLINES_COLOR_CMD = 'sheet.command.set-gridlines-color';
+
+// Toolbar items we do not need on a scratch pad. Everything else in Univer's toolbar stays
+// (undo/redo, font, bold/italic/underline/strike, text + fill color, borders, merge, align,
+// wrap, number format, format painter...).
+const HIDDEN_MENU_ITEMS = [
+  // tail-end items overflow first, so keep only what a scratch pad needs in view:
+  // undo/redo, bold, italic, text color, fill, borders, align, number format
+  'ui.operation.activate-format-painter',
+  'ui.command.clear-formatting',
+  'sheet.menu.paste',
+  'sheet.command.set-range-font-family',
+  'sheet.command.set-range-fontsize',
+  'sheet.command.set-range-font-increase',
+  'sheet.command.set-range-font-decrease',
+  'sheet.command.set-range-underline',
+  'sheet.command.set-range-stroke',
+  'sheet.command.set-vertical-text-align',
+  'sheet.command.set-text-wrap',
+  'sheet.command.set-shrink-to-fit',
+  'sheet.command.set-text-rotation',
+  'sheet.command.add-worksheet-merge',
+  'ui.operation.open-feature-search',
+  'formula-ui.operation.insert-function.common',
+  'formula-ui.operation.insert-function.financial',
+  'formula-ui.operation.insert-function.logical',
+  'formula-ui.operation.insert-function.text',
+  'formula-ui.operation.insert-function.date',
+  'formula-ui.operation.insert-function.lookup',
+  'formula-ui.operation.insert-function.math',
+  'formula-ui.operation.insert-function.statistical',
+  'formula-ui.operation.insert-function.engineering',
+  'formula-ui.operation.insert-function.information',
+  'formula-ui.operation.insert-function.database',
+  'sheet.toolbar.sheet-frozen',
+  'sheet.command.toggle-gridlines',
+  'sheet.command.add-range-protection-from-toolbar',
+  'sheet.menu.zoom-ratio',
+  'sheet.command.set-zoom-ratio-from-toolbar',
+  'base-ui.operation.toggle-fullscreen',
+  'base-ui.operation.toggle-shortcut-panel',
 ];
-let currentFill = HIGHLIGHTS[0];
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,10 +74,12 @@ const { univerAPI } = createUniver({
     UniverSheetsCorePreset({
       container: 'sheet',
       header: true,
-      toolbar: false,
+      toolbar: true,
+      ribbonType: 'simple',
       footer: false,
       formulaBar: true,
       contextMenu: true,
+      menu: Object.fromEntries(HIDDEN_MENU_ITEMS.map((id) => [id, { hidden: true }])),
     }),
   ],
 });
@@ -47,6 +89,7 @@ window.univerAPI = univerAPI;
 
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
+applyGridlinesToSnapshot(workbookData, config.darkMode);
 univerAPI.createWorkbook(workbookData);
 
 // Restore where the user was last working once the grid has rendered.
@@ -58,7 +101,7 @@ univerAPI.addEvent(univerAPI.Event.LifeCycleChanged, ({ stage }) => {
 // Autosave on every mutation (cell edits, formatting, row/col changes, undo/redo).
 const scheduleSave = debounce(persist, 350);
 univerAPI.addEvent(univerAPI.Event.CommandExecuted, (ev) => {
-  if (ev.type === univerAPI.Enum.CommandType?.MUTATION || ev.type === 2) scheduleSave();
+  if (ev.type === univerAPI.Enum.CommandType.MUTATION) scheduleSave();
 });
 
 window.addEventListener('beforeunload', () => persist());
@@ -66,6 +109,7 @@ api.onShown(() => focusGrid());
 api.onConfigChanged((cfg) => {
   applyTheme(cfg);
   univerAPI.toggleDarkMode(!!cfg.darkMode);
+  setGridlinesColor(cfg.darkMode);
 });
 
 // ---------------------------------------------------------------------------
@@ -96,6 +140,28 @@ function freshWorkbook() {
       },
     },
   };
+}
+
+function applyGridlinesToSnapshot(snapshot, dark) {
+  for (const sheet of Object.values(snapshot.sheets || {})) {
+    sheet.showGridlines = 1;
+    sheet.gridlinesColor = dark ? GRIDLINES.dark : GRIDLINES.light;
+  }
+}
+
+function setGridlinesColor(dark) {
+  try {
+    const wb = univerAPI.getActiveWorkbook();
+    const ws = wb?.getActiveSheet();
+    if (!ws) return;
+    univerAPI.executeCommand(SET_GRIDLINES_COLOR_CMD, {
+      unitId: wb.getId(),
+      subUnitId: ws.getSheetId(),
+      color: dark ? GRIDLINES.dark : GRIDLINES.light,
+    });
+  } catch (err) {
+    console.warn('gridline color update failed', err);
+  }
 }
 
 let persistInFlight = false;
@@ -148,81 +214,17 @@ function restorePosition(pos) {
 }
 
 function focusGrid() {
-  // Univer listens on the container's canvas; focusing the container is enough for arrow keys.
   const el = document.querySelector('#sheet canvas') || $('sheet');
   if (el && el.focus) el.focus({ preventScroll: true });
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar actions
+// Title bar actions
 // ---------------------------------------------------------------------------
-function activeRange() {
-  const ws = univerAPI.getActiveWorkbook()?.getActiveSheet();
-  return ws?.getSelection()?.getActiveRange() || null;
-}
-
-$('btn-bold').addEventListener('click', () => {
-  const r = activeRange();
-  if (!r) return;
-  const style = r.getCellStyleData?.();
-  const isBold = !!(style && style.bl === 1);
-  r.setFontWeight(isBold ? 'normal' : 'bold');
-  focusGrid();
-});
-
-$('btn-fill').addEventListener('click', () => applyFill(currentFill));
-
-$('btn-fill-more').addEventListener('click', (e) => {
-  e.stopPropagation();
-  const pal = $('fill-palette');
-  pal.hidden = !pal.hidden;
-});
-
-(function buildPalette() {
-  const pal = $('fill-palette');
-  for (const color of HIGHLIGHTS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    if (color) {
-      b.style.background = color;
-      b.title = color;
-    } else {
-      b.className = 'none';
-      b.title = 'Remove highlight';
-    }
-    b.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (color) {
-        currentFill = color;
-        $('fill-swatch').style.background = color;
-      }
-      applyFill(color);
-      pal.hidden = true;
-    });
-    pal.appendChild(b);
-  }
-  document.addEventListener('click', () => { pal.hidden = true; });
-})();
-
-function applyFill(color) {
-  const r = activeRange();
-  if (!r) return;
-  if (color) {
-    const current = r.getBackground?.();
-    // Clicking the same color again toggles it off.
-    if (current && current.toLowerCase() === color.toLowerCase()) r.setBackground(null);
-    else r.setBackground(color);
-  } else {
-    r.setBackground(null);
-  }
-  focusGrid();
-}
-
 $('btn-copy').addEventListener('click', async () => {
   try {
     const ws = univerAPI.getActiveWorkbook().getActiveSheet();
-    const data = ws.getDataRange();
-    const rows = data.getDisplayValues();
+    const rows = ws.getDataRange().getDisplayValues();
     const text = rows.map((row) => row.map((v) => (v ?? '').toString().replace(/\t/g, ' ')).join('\t')).join('\n');
     await api.writeClipboard(text);
     toast(text.trim() ? 'Copied whole sheet' : 'Sheet is empty');

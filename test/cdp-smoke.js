@@ -43,7 +43,13 @@ async function main() {
   const title = await evaluate('document.title');
   check('page title', title === 'Scratch Sheet', title);
   check('univerAPI exposed', await evaluate('typeof window.univerAPI === "object"'));
-  check('palette hidden on load', await evaluate('getComputedStyle(document.getElementById("fill-palette")).display === "none"'));
+  check('drag handle present', await evaluate('document.querySelector(".tb-drag").getBoundingClientRect().width > 40'));
+  check('toolbar shows bold', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-range-bold\\"]")'));
+  check('toolbar shows italic', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-range-italic\\"]")'));
+  check('toolbar shows fill', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-background-color\\"]")'));
+  check('toolbar shows align', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-horizontal-text-align\\"]")'));
+  check('toolbar shows number format', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.operation.open.numfmt.panel\\"]")'));
+  check('font family hidden', await evaluate('!document.querySelector("[data-u-command=\\"sheet.command.set-range-font-family\\"]")'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
   // --- Values + formulas via facade (simulates typed input through the command system)
@@ -118,24 +124,24 @@ async function main() {
 
   // --- Bold + highlight via toolbar buttons
   await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').activate()`);
-  await evaluate(`document.getElementById('btn-bold').click()`);
+  await evaluate(`document.querySelector('[data-u-command="sheet.command.set-range-bold"]').click()`);
   await sleep(200);
   const bold = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').getCellStyleData()`);
   check('bold applied via button', bold && bold.bl === 1, JSON.stringify(bold));
-  await evaluate(`document.getElementById('btn-bold').click()`);
+  await evaluate(`document.querySelector('[data-u-command="sheet.command.set-range-bold"]').click()`);
   await sleep(200);
   const unbold = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').getCellStyleData()`);
   check('bold toggles off', !unbold || unbold.bl !== 1, JSON.stringify(unbold));
 
   await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').activate()`);
-  await evaluate(`document.getElementById('btn-fill').click()`);
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-background-color', { value: '#fde68a' })`);
   await sleep(200);
   const bg = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').getBackgrounds()`);
-  check('highlight applied', Array.isArray(bg) && bg.flat().every((c) => c && c.toLowerCase() === '#fde68a'), JSON.stringify(bg));
-  await evaluate(`document.getElementById('btn-fill').click()`);
+  check('fill applied via toolbar command', Array.isArray(bg) && bg.flat().every((c) => c && c.toLowerCase() === '#fde68a'), JSON.stringify(bg));
+  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').setBackground(null)`);
   await sleep(200);
   const bg2 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').getBackgrounds()`);
-  check('highlight toggles off', bg2.flat().every((c) => !c || c.toLowerCase() !== '#fde68a'), JSON.stringify(bg2));
+  check('fill removed', bg2.flat().every((c) => !c || c.toLowerCase() !== '#fde68a'), JSON.stringify(bg2));
 
   // --- Copy all
   await evaluate(`document.getElementById('btn-copy').click()`);
