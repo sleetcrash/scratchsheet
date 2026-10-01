@@ -39,17 +39,32 @@ async function main() {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -> ' + detail : ''}`);
   };
 
+  // --- Make sure the window is actually on screen and on top: mouse-driven UI (context menu)
+  // and timers do not behave when the page is occluded. Restore the user's pin state at the end.
+  const startCfg = await evaluate('window.scratch.getConfig()');
+  if (!startCfg.alwaysOnTop) { await evaluate('void window.scratch.togglePin()'); await sleep(300); }
+  if (await evaluate('document.visibilityState') === 'hidden') {
+    const { execSync: run } = require('node:child_process');
+    run(`powershell -NoProfile -ExecutionPolicy Bypass -File "${require('node:path').join(__dirname, 'send-hotkey.ps1')}"`);
+    await sleep(900);
+  }
+  check('window visible', await evaluate('document.visibilityState') === 'visible');
+  const restorePin = async () => { if (!startCfg.alwaysOnTop) await evaluate('void window.scratch.togglePin()'); };
+
   // --- Baseline
   const title = await evaluate('document.title');
   check('page title', title === 'Scratch Sheet', title);
   check('univerAPI exposed', await evaluate('typeof window.univerAPI === "object"'));
   check('drag handle present', await evaluate('document.querySelector(".tb-drag").getBoundingClientRect().width > 40'));
-  check('toolbar shows bold', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-range-bold\\"]")'));
-  check('toolbar shows italic', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-range-italic\\"]")'));
-  check('toolbar shows fill', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-background-color\\"]")'));
-  check('toolbar shows align', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.command.set-horizontal-text-align\\"]")'));
-  check('toolbar shows number format', await evaluate('!!document.querySelector("[data-u-command=\\"sheet.operation.open.numfmt.panel\\"]")'));
-  check('font family hidden', await evaluate('!document.querySelector("[data-u-command=\\"sheet.command.set-range-font-family\\"]")'));
+  const visibleToolbar = await evaluate('[...document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]")].map(e => e.dataset.uCommand)');
+  check('toolbar is exactly fill % $ .0 .00', JSON.stringify([...visibleToolbar].sort()) === JSON.stringify([
+    'sheet.command.numfmt.add.decimal.command', 'sheet.command.numfmt.set.currency', 'sheet.command.numfmt.set.percent',
+    'sheet.command.numfmt.subtract.decimal.command', 'sheet.command.set-background-color',
+  ]), JSON.stringify(visibleToolbar));
+  check('toolbar sits on the formula bar row', await evaluate('Math.abs(document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect().top - document.querySelector("[data-u-comp=formula-bar]").getBoundingClientRect().top) < 2'));
+  check('name box hidden', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=defined-name]").parentElement).display === "none"'));
+  check('formula bar x/check/fx hidden', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=formula-bar-actions]")).display === "none"'));
+  check('percent button shows % glyph', await evaluate('getComputedStyle(document.querySelector("[data-u-command=\\"sheet.command.numfmt.set.percent\\"]"), "::before").content === "\\"%\\""'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
   // --- Values + formulas via facade (simulates typed input through the command system)
@@ -94,7 +109,8 @@ async function main() {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
   };
   // Focus the canvas so Univer's keyboard handler gets the keys
-  await evaluate(`(document.querySelector('#sheet canvas') || document.body).focus()`);
+  const GRID = `[...document.querySelectorAll('#sheet canvas')].sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0]`;
+  await evaluate(`(${GRID} || document.body).focus()`);
   await typeText('$12,133');
   await pressEnter();
   await sleep(300);
@@ -124,11 +140,11 @@ async function main() {
 
   // --- Bold + highlight via toolbar buttons
   await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').activate()`);
-  await evaluate(`document.querySelector('[data-u-command="sheet.command.set-range-bold"]').click()`);
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-bold')`);
   await sleep(200);
   const bold = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').getCellStyleData()`);
-  check('bold applied via button', bold && bold.bl === 1, JSON.stringify(bold));
-  await evaluate(`document.querySelector('[data-u-command="sheet.command.set-range-bold"]').click()`);
+  check('bold applied via Ctrl+B command', bold && bold.bl === 1, JSON.stringify(bold));
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-bold')`);
   await sleep(200);
   const unbold = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').getCellStyleData()`);
   check('bold toggles off', !unbold || unbold.bl !== 1, JSON.stringify(unbold));
@@ -142,6 +158,41 @@ async function main() {
   await sleep(200);
   const bg2 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').getBackgrounds()`);
   check('fill removed', bg2.flat().every((c) => !c || c.toLowerCase() !== '#fde68a'), JSON.stringify(bg2));
+
+  // --- Right-click menu: Number format + Align submenus
+  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').activate()`);
+  // Row 1 / column A: past the 40px row header and the 22px column header.
+  const cellXY = await evaluate(`(() => { const b = ${GRID}.getBoundingClientRect(); return [Math.round(b.left + 70), Math.round(b.top + 36)]; })()`);
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cellXY[0], y: cellXY[1] });
+  await sleep(100);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
+  await sleep(800);
+  // Univer's context menu has no ARIA roles; find items by their visible leaf text.
+  const LEAF = `(() => [...document.querySelectorAll('body *')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && e.children.length === 0 && !e.closest('#titlebar'); }))()`;
+  const menuTexts = await evaluate(`${LEAF}.map(e => e.textContent.trim()).filter(Boolean)`);
+  check('context menu has Number format', menuTexts.some((t) => t === 'Number format'), JSON.stringify(menuTexts.slice(0, 30)));
+  check('context menu has Align', menuTexts.some((t) => t === 'Align'));
+  const centerOf = (text) => `(() => { const el = ${LEAF}.find(e => e.textContent.trim() === '${text}'); if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2)]; })()`;
+  const fmtItemXY = await evaluate(centerOf('Number format'));
+  if (fmtItemXY) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fmtItemXY[0], y: fmtItemXY[1] });
+    await sleep(500);
+    const pctXY = await evaluate(centerOf('Percent'));
+    check('Number format submenu opens', !!pctXY);
+    if (pctXY) {
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pctXY[0], y: pctXY[1] });
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
+      await sleep(400);
+      const a1 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getDisplayValue()`);
+      check('Percent applied from context menu', a1 === '84500.00%', JSON.stringify(a1));
+      await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').setNumberFormat('General')`);
+    }
+  }
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(200);
 
   // --- Copy all
   await evaluate(`document.getElementById('btn-copy').click()`);
@@ -191,6 +242,7 @@ async function main() {
   const undone = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getValue()`);
   check('undo restores after clear', undone === 845, JSON.stringify(undone));
 
+  await restorePin();
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   ws.close();

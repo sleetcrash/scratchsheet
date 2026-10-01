@@ -94,6 +94,8 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       spellcheck: false,
+      // Keep formulas and autosave running when the note is covered by another window.
+      backgroundThrottling: false,
     },
   });
 

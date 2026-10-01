@@ -9,7 +9,9 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 - Frameless, resizable window with a Windows Terminal style header bar that doubles as the drag handle
 - Full formula engine (Univer): `SUM`, `AVERAGE`, `IF`, `ROUND`, `VLOOKUP`, `CONCATENATE` and hundreds more
 - Typing `$12,133` or `5.7%` keeps the number and applies the format, like Sheets
-- Formatting toolbar: undo, redo, bold, italic, text color, fill, borders, align, number format (General, Number, Percent, Currency, Date and more), quick `%` and `$`, add or remove decimals
+- One compact row: the formula bar plus paint bucket, `%`, `$`, `.0←`, `.00→`, drawn like Google Sheets
+- Right-click a cell for **Number format** (Automatic, Number, Percent, Currency, Date, Time, Plain text) and **Align**
+- Bold, italic, undo, redo are keyboard only: Ctrl+B, Ctrl+I, Ctrl+Z, Ctrl+Y
 - Title bar actions: **Copy all** (tab-separated, pastes straight into Sheets or Excel), **Save** (.xlsx), **Clear** (two-step, undoable with Ctrl+Z)
 - Global show/hide hotkey, default `Ctrl+Alt+Space`
 - Launches at login, hidden in the tray. Close and minimize both hide to the tray. Quit is in the tray menu

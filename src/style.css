@@ -161,3 +161,84 @@ html, body {
   pointer-events: none;
 }
 #toast.error { background: var(--danger); color: #fff; }
+
+/* ---------- Univer overrides: one compact row, Sheets-style glyphs ---------- */
+#sheet [data-u-comp="workbench-layout"] { position: relative; }
+
+/* Toolbar: pull it out of the flow and park it at the right end of the formula bar row */
+/* The toolbar hides items that do not fit its container, so it needs a real width here. */
+#sheet { --mini-toolbar-w: 236px; }
+#sheet [data-u-comp="headerbar"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  width: var(--mini-toolbar-w);
+  height: 28px;
+  z-index: 20;
+  background: transparent;
+  overflow: visible;
+}
+#sheet [data-u-comp="headerbar"] > div { height: 28px !important; }
+#sheet [data-u-comp="ribbon-toolbar"] { justify-content: flex-end; }
+#sheet [data-u-comp="ribbon-header-menu"] { display: none; }
+
+/* Formula bar: full width minus the toolbar, no name box, no x / check / fx */
+#sheet [data-u-comp="formula-bar"] {
+  height: 28px !important;
+  padding-right: var(--mini-toolbar-w, 170px);
+}
+#sheet [data-u-comp="formula-bar"] > div:first-child { display: none; }
+#sheet [data-u-comp="formula-bar-actions"] { display: none; }
+#sheet [data-u-comp="formula-bar"] div.univer-w-5.univer-h-full { display: none; } /* expand arrow */
+
+/* No hover tooltips anywhere */
+.univer-tooltip { display: none !important; }
+
+/* Order inside the number-format group: % $ .0<- .00-> */
+#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.subtract.decimal.command"]) { order: 1; }
+#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.add.decimal.command"]) { order: 2; }
+
+/* Text glyphs instead of icons */
+#sheet [data-u-command="sheet.command.numfmt.set.percent"] svg,
+#sheet [data-u-command="sheet.command.numfmt.set.currency"] svg,
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"] svg,
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] svg { display: none; }
+
+#sheet [data-u-command="sheet.command.numfmt.set.percent"],
+#sheet [data-u-command="sheet.command.numfmt.set.currency"],
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"],
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  width: 26px;
+}
+#sheet [data-u-command="sheet.command.numfmt.set.percent"]::before { content: "%"; font-size: 13px; font-weight: 500; }
+#sheet [data-u-command="sheet.command.numfmt.set.currency"]::before { content: "$"; font-size: 13px; font-weight: 500; }
+
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"],
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] {
+  flex-direction: column;
+  gap: 0;
+  line-height: 1;
+}
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::before { content: ".0"; font-size: 10px; font-weight: 600; }
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::after { content: "\2190"; font-size: 9px; margin-top: 1px; }
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::before { content: ".00"; font-size: 10px; font-weight: 600; }
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::after { content: "\2192"; font-size: 9px; margin-top: 1px; }
+
+/* Paint bucket: Material "format_color_fill" drawn in the current text color.
+   Univer's own icon paths are hidden except the last one (the current-color bar). */
+#sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main { position: relative; }
+#sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main svg path:not(:last-of-type) { display: none; }
+#sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 15px;
+  height: 13px;
+  transform: translateX(-50%);
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 18'><path d='M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10 10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z'/></svg>") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 18'><path d='M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10 10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z'/></svg>") center / contain no-repeat;
+}

@@ -21,8 +21,11 @@ const SET_GRIDLINES_COLOR_CMD = 'sheet.command.set-gridlines-color';
 // (undo/redo, font, bold/italic/underline/strike, text + fill color, borders, merge, align,
 // wrap, number format, format painter...).
 const HIDDEN_MENU_ITEMS = [
-  // tail-end items overflow first, so keep only what a scratch pad needs in view:
-  // undo/redo, bold, italic, text color, fill, borders, align, number format
+  // Only fill, %, $, and the two decimal buttons stay in the toolbar. Bold/italic are
+  // Ctrl+B / Ctrl+I, undo/redo are Ctrl+Z / Ctrl+Y, number format + alignment live in
+  // the right-click menu (see registerContextMenus).
+  'univer.command.undo',
+  'univer.command.redo',
   'ui.operation.activate-format-painter',
   'ui.command.clear-formatting',
   'sheet.menu.paste',
@@ -30,13 +33,19 @@ const HIDDEN_MENU_ITEMS = [
   'sheet.command.set-range-fontsize',
   'sheet.command.set-range-font-increase',
   'sheet.command.set-range-font-decrease',
+  'sheet.command.set-range-bold',
+  'sheet.command.set-range-italic',
   'sheet.command.set-range-underline',
   'sheet.command.set-range-stroke',
+  'sheet.command.set-range-text-color',
+  'sheet.command.set-border-basic',
+  'sheet.command.set-horizontal-text-align',
   'sheet.command.set-vertical-text-align',
   'sheet.command.set-text-wrap',
   'sheet.command.set-shrink-to-fit',
   'sheet.command.set-text-rotation',
   'sheet.command.add-worksheet-merge',
+  'sheet.operation.open.numfmt.panel',
   'ui.operation.open-feature-search',
   'formula-ui.operation.insert-function.common',
   'formula-ui.operation.insert-function.financial',
@@ -56,6 +65,21 @@ const HIDDEN_MENU_ITEMS = [
   'sheet.command.set-zoom-ratio-from-toolbar',
   'base-ui.operation.toggle-fullscreen',
   'base-ui.operation.toggle-shortcut-panel',
+];
+
+// Right-click menu additions (replaces the toolbar's number-format dropdown and align button).
+const NUMBER_FORMATS = [
+  ['Automatic', 'General'],
+  ['Number', '#,##0.00'],
+  ['Percent', '0.00%'],
+  ['Currency', '$#,##0.00'],
+  ['Currency (rounded)', '$#,##0'],
+  null,
+  ['Date', 'm/d/yyyy'],
+  ['Time', 'h:mm AM/PM'],
+  ['Date time', 'm/d/yyyy h:mm'],
+  null,
+  ['Plain text', '@'],
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -87,6 +111,8 @@ const { univerAPI } = createUniver({
 // Exposed for debugging / automated tests only.
 window.univerAPI = univerAPI;
 
+registerContextMenus();
+
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
 applyGridlinesToSnapshot(workbookData, config.darkMode);
@@ -111,6 +137,38 @@ api.onConfigChanged((cfg) => {
   univerAPI.toggleDarkMode(!!cfg.darkMode);
   setGridlinesColor(cfg.darkMode);
 });
+
+// ---------------------------------------------------------------------------
+// Context menu: Number format + Align submenus
+// ---------------------------------------------------------------------------
+function activeRange() {
+  return univerAPI.getActiveWorkbook()?.getActiveSheet()?.getSelection()?.getActiveRange() || null;
+}
+
+function registerContextMenus() {
+  const fmtMenu = univerAPI.createSubmenu({ id: 'scratch.number-format', title: 'Number format' });
+  for (const entry of NUMBER_FORMATS) {
+    if (!entry) { fmtMenu.addSeparator(); continue; }
+    const [title, pattern] = entry;
+    fmtMenu.addSubmenu(univerAPI.createMenu({
+      id: `scratch.number-format.${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      title,
+      action: () => { const r = activeRange(); if (r) r.setNumberFormat(pattern); focusGrid(); },
+    }));
+  }
+  fmtMenu.appendTo('contextMenu.format');
+
+  const H = univerAPI.Enum.HorizontalAlign;
+  const alignMenu = univerAPI.createSubmenu({ id: 'scratch.align', title: 'Align' });
+  for (const [title, value] of [['Left', H.LEFT], ['Center', H.CENTER], ['Right', H.RIGHT]]) {
+    alignMenu.addSubmenu(univerAPI.createMenu({
+      id: `scratch.align.${title.toLowerCase()}`,
+      title,
+      action: () => { univerAPI.executeCommand('sheet.command.set-horizontal-text-align', { value }); focusGrid(); },
+    }));
+  }
+  alignMenu.appendTo('contextMenu.format');
+}
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -214,7 +272,10 @@ function restorePosition(pos) {
 }
 
 function focusGrid() {
-  const el = document.querySelector('#sheet canvas') || $('sheet');
+  // The formula bar is also a canvas, so pick the biggest one: that is the grid.
+  const canvases = [...document.querySelectorAll('#sheet canvas')];
+  const grid = canvases.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight)[0];
+  const el = grid || $('sheet');
   if (el && el.focus) el.focus({ preventScroll: true });
 }
 
