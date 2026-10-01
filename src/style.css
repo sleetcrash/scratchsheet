@@ -134,6 +134,7 @@ html, body {
 .tb-win:hover { color: var(--tb-fg); }
 .tb-close:hover { background: #c42b1c; color: #fff; }
 #btn-pin { font-size: 9px; }
+#btn-theme { font-size: 13px; }
 #btn-pin.is-on { color: var(--accent); background: transparent; }
 
 /* ---------- Sheet ---------- */
@@ -198,6 +199,12 @@ html, body {
 /* Order inside the number-format group: % $ .0<- .00-> */
 #sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.subtract.decimal.command"]) { order: 1; }
 #sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.add.decimal.command"]) { order: 2; }
+
+/* Toolbar glyphs always follow the theme text color, even when Univer marks them disabled */
+#sheet [data-u-comp="ribbon-toolbar"] [data-u-command],
+#sheet [data-u-comp="ribbon-toolbar"] [data-u-command] svg { color: var(--tb-fg) !important; }
+#sheet [data-u-comp="ribbon-toolbar"] [data-u-command][disabled],
+#sheet [data-u-comp="ribbon-toolbar"] [data-u-command][aria-disabled="true"] { opacity: 0.45; }
 
 /* Text glyphs instead of icons */
 #sheet [data-u-command="sheet.command.numfmt.set.percent"] svg,

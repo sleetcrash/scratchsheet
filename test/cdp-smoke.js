@@ -39,17 +39,21 @@ async function main() {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -> ' + detail : ''}`);
   };
 
-  // --- Make sure the window is actually on screen and on top: mouse-driven UI (context menu)
-  // and timers do not behave when the page is occluded. Restore the user's pin state at the end.
+  // --- Mouse-driven steps (right-click menu) need the window on screen and on top.
+  // QUIET=1 skips those steps and never shows or pins the window (the user is at the PC).
+  const QUIET = !!process.env.QUIET;
   const startCfg = await evaluate('window.scratch.getConfig()');
-  if (!startCfg.alwaysOnTop) { await evaluate('void window.scratch.togglePin()'); await sleep(300); }
-  if (await evaluate('document.visibilityState') === 'hidden') {
-    const { execSync: run } = require('node:child_process');
-    run(`powershell -NoProfile -ExecutionPolicy Bypass -File "${require('node:path').join(__dirname, 'send-hotkey.ps1')}"`);
-    await sleep(900);
+  let restorePin = async () => {};
+  if (!QUIET) {
+    if (!startCfg.alwaysOnTop) { await evaluate('void window.scratch.togglePin()'); await sleep(300); }
+    if (await evaluate('document.visibilityState') === 'hidden') {
+      const { execSync: run } = require('node:child_process');
+      run(`powershell -NoProfile -ExecutionPolicy Bypass -File "${require('node:path').join(__dirname, 'send-hotkey.ps1')}"`);
+      await sleep(900);
+    }
+    check('window visible', await evaluate('document.visibilityState') === 'visible');
+    restorePin = async () => { if (!startCfg.alwaysOnTop) await evaluate('void window.scratch.togglePin()'); };
   }
-  check('window visible', await evaluate('document.visibilityState') === 'visible');
-  const restorePin = async () => { if (!startCfg.alwaysOnTop) await evaluate('void window.scratch.togglePin()'); };
 
   // --- Baseline
   const title = await evaluate('document.title');
@@ -138,6 +142,22 @@ async function main() {
   const d3 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('D3').getValue()`);
   check('formula over currency*percent', Math.abs(d3 - 12133 * 0.057) < 1e-6, JSON.stringify(d3));
 
+  // --- Typed cells must not carry the editor's forced text color (black-on-black in dark mode)
+  check('typed cell has no forced text color', !rawTyped.s1 || !rawTyped.s1.cl, JSON.stringify(rawTyped.s1));
+  check('typed percent cell has no forced text color', !rawTyped.s2 || !rawTyped.s2.cl, JSON.stringify(rawTyped.s2));
+
+  // --- Theme toggle button flips dark/light and back
+  const darkBefore = (await evaluate('window.scratch.getConfig()')).darkMode;
+  await evaluate(`document.getElementById('btn-theme').click()`);
+  await sleep(500);
+  const darkAfter = (await evaluate('window.scratch.getConfig()')).darkMode;
+  check('theme toggle flips mode', darkAfter === !darkBefore, `${darkBefore} -> ${darkAfter}`);
+  check('html data-theme follows', await evaluate('document.documentElement.dataset.theme') === (darkAfter ? 'dark' : 'light'));
+  check('univer dark class follows', await evaluate('document.documentElement.classList.contains("univer-dark")') === darkAfter);
+  await evaluate(`document.getElementById('btn-theme').click()`);
+  await sleep(1500); // Univer re-themes the whole workbench; give it time before mouse-driven steps
+  check('theme toggle flips back', (await evaluate('window.scratch.getConfig()')).darkMode === darkBefore);
+
   // --- Bold + highlight via toolbar buttons
   await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').activate()`);
   await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-bold')`);
@@ -159,47 +179,59 @@ async function main() {
   const bg2 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').getBackgrounds()`);
   check('fill removed', bg2.flat().every((c) => !c || c.toLowerCase() !== '#fde68a'), JSON.stringify(bg2));
 
-  // --- Right-click menu: Number format + Align submenus
-  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').activate()`);
-  // Row 1 / column A: past the 40px row header and the 22px column header.
-  const cellXY = await evaluate(`(() => { const b = ${GRID}.getBoundingClientRect(); return [Math.round(b.left + 70), Math.round(b.top + 36)]; })()`);
-  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cellXY[0], y: cellXY[1] });
-  await sleep(100);
-  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
-  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
-  await sleep(800);
-  // Univer's context menu has no ARIA roles; find items by their visible leaf text.
-  const LEAF = `(() => [...document.querySelectorAll('body *')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && e.children.length === 0 && !e.closest('#titlebar'); }))()`;
-  const menuTexts = await evaluate(`${LEAF}.map(e => e.textContent.trim()).filter(Boolean)`);
-  check('context menu has Number format', menuTexts.some((t) => t === 'Number format'), JSON.stringify(menuTexts.slice(0, 30)));
-  check('context menu has Align', menuTexts.some((t) => t === 'Align'));
-  const centerOf = (text) => `(() => { const el = ${LEAF}.find(e => e.textContent.trim() === '${text}'); if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2)]; })()`;
-  const fmtItemXY = await evaluate(centerOf('Number format'));
-  if (fmtItemXY) {
-    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fmtItemXY[0], y: fmtItemXY[1] });
-    await sleep(500);
-    const pctXY = await evaluate(centerOf('Percent'));
-    check('Number format submenu opens', !!pctXY);
-    if (pctXY) {
-      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pctXY[0], y: pctXY[1] });
-      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
-      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
-      await sleep(400);
-      const a1 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getDisplayValue()`);
-      check('Percent applied from context menu', a1 === '84500.00%', JSON.stringify(a1));
-      await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').setNumberFormat('General')`);
+  if (QUIET) {
+    console.log('SKIP  right-click menu steps (QUIET set)');
+  } else {
+    // --- Right-click menu: Number format + Align submenus
+    await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').activate()`);
+    // Row 1 / column A: past the 40px row header and the 22px column header.
+    const cellXY = await evaluate(`(() => { const b = ${GRID}.getBoundingClientRect(); return [Math.round(b.left + 70), Math.round(b.top + 36)]; })()`);
+    // Left-click the cell first so the grid owns pointer focus, then right-click it.
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cellXY[0], y: cellXY[1] });
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cellXY[0], y: cellXY[1], button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cellXY[0], y: cellXY[1], button: 'left', clickCount: 1 });
+    await sleep(300);
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cellXY[0], y: cellXY[1], button: 'right', clickCount: 1 });
+    await sleep(800);
+    // Univer's context menu has no ARIA roles; find items by their visible leaf text.
+    const LEAF = `(() => [...document.querySelectorAll('body *')].filter(e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && e.children.length === 0 && !e.closest('#titlebar'); }))()`;
+    const menuTexts = await evaluate(`${LEAF}.map(e => e.textContent.trim()).filter(Boolean)`);
+    check('context menu has Number format', menuTexts.some((t) => t === 'Number format'), JSON.stringify(menuTexts.slice(0, 30)));
+    check('context menu has Align', menuTexts.some((t) => t === 'Align'));
+    const centerOf = (text) => `(() => { const el = ${LEAF}.find(e => e.textContent.trim() === '${text}'); if (!el) return null; const b = el.getBoundingClientRect(); return [Math.round(b.left + b.width / 2), Math.round(b.top + b.height / 2)]; })()`;
+    const fmtItemXY = await evaluate(centerOf('Number format'));
+    if (fmtItemXY) {
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fmtItemXY[0], y: fmtItemXY[1] });
+      await sleep(500);
+      const pctXY = await evaluate(centerOf('Percent'));
+      check('Number format submenu opens', !!pctXY);
+      if (pctXY) {
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pctXY[0], y: pctXY[1] });
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pctXY[0], y: pctXY[1], button: 'left', clickCount: 1 });
+        await sleep(400);
+        const a1 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getDisplayValue()`);
+        check('Percent applied from context menu', a1 === '84500.00%', JSON.stringify(a1));
+        await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').setNumberFormat('General')`);
+      }
     }
-  }
-  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-  await sleep(200);
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await sleep(200);
 
-  // --- Copy all
-  await evaluate(`document.getElementById('btn-copy').click()`);
-  await sleep(500);
-  const { execSync } = require('node:child_process');
-  const clip = execSync('powershell -NoProfile -Command "Get-Clipboard -Raw"', { encoding: 'utf8' }).replace(/\r/g, '');
-  check('copy all -> clipboard TSV', clip.includes('845\tUnits sold') && clip.includes('1590'), JSON.stringify(clip.slice(0, 120)));
+  }
+
+  // --- Copy all (touches the system clipboard; set SKIP_CLIPBOARD=1 while someone is using the PC)
+  if (process.env.SKIP_CLIPBOARD) {
+    console.log('SKIP  copy all -> clipboard TSV (SKIP_CLIPBOARD set)');
+  } else {
+    await evaluate(`document.getElementById('btn-copy').click()`);
+    await sleep(500);
+    const { execSync } = require('node:child_process');
+    const clip = execSync('powershell -NoProfile -Command "Get-Clipboard -Raw"', { encoding: 'utf8' }).replace(/\r/g, '');
+    check('copy all -> clipboard TSV', clip.includes('845\tUnits sold') && clip.includes('1590'), JSON.stringify(clip.slice(0, 120)));
+  }
 
   // --- Autosave happened
   await sleep(800);
@@ -243,6 +275,8 @@ async function main() {
   check('undo restores after clear', undone === 845, JSON.stringify(undone));
 
   await restorePin();
+  await sleep(500);
+  if (!QUIET) check('pin state restored', (await evaluate('window.scratch.getConfig()')).alwaysOnTop === !!startCfg.alwaysOnTop);
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   ws.close();

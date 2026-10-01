@@ -276,6 +276,13 @@ ipcMain.handle('sheet:export', async (_e, snapshot) => {
 });
 
 ipcMain.on('window:hide', () => win && win.hide());
+ipcMain.on('window:toggle-theme', () => {
+  config.darkMode = !config.darkMode;
+  saveConfig();
+  win.setBackgroundColor(config.darkMode ? '#1b1f24' : '#ffffff');
+  refreshTrayMenu();
+  win.webContents.send('config:changed', publicConfig());
+});
 ipcMain.on('window:toggle-pin', () => {
   config.alwaysOnTop = !config.alwaysOnTop;
   win.setAlwaysOnTop(config.alwaysOnTop, 'floating');

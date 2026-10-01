@@ -15,7 +15,7 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 - Title bar actions: **Copy all** (tab-separated, pastes straight into Sheets or Excel), **Save** (.xlsx), **Clear** (two-step, undoable with Ctrl+Z)
 - Global show/hide hotkey, default `Ctrl+Alt+Space`
 - Launches at login, hidden in the tray. Close and minimize both hide to the tray. Quit is in the tray menu
-- Dark mode by default, light mode in the tray menu
+- Dark mode by default; the sun/moon button in the title bar (or the tray menu) switches to light mode
 - Autosave with atomic writes, including scroll position and active cell
 
 ## Setup
@@ -35,7 +35,8 @@ G keys only send whatever G HUB assigns them, so map a G key to the combo `Ctrl+
 
 ```powershell
 npm run dev          # vite build + electron .
-npm test             # runs the DevTools Protocol smoke test against a running instance started with --remote-debugging-port=9222
+npm test             # DevTools Protocol smoke test against an instance started with --remote-debugging-port=9222
+# QUIET=1 never shows the window (skips right-click steps); SKIP_CLIPBOARD=1 skips the Copy-all check
 ```
 
 Data lives in `%APPDATA%\Scratch Sheet\`: `config.json` (hotkey, theme, window bounds, always-on-top, launch-at-login) and `sheet.json` (the sheet snapshot).

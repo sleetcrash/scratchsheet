@@ -17,6 +17,10 @@ const COLS = 26;
 const GRIDLINES = { dark: '#4b5563', light: '#c3c8d0' };
 const SET_GRIDLINES_COLOR_CMD = 'sheet.command.set-gridlines-color';
 
+// Univer's cell editor stamps this explicit text color on every typed cell, which is
+// black-on-black in dark mode. We strip it so cells use the theme's default text color.
+const EDITOR_TEXT_COLOR = '#1b1c1f';
+
 // Toolbar items we do not need on a scratch pad. Everything else in Univer's toolbar stays
 // (undo/redo, font, bold/italic/underline/strike, text + fill color, borders, merge, align,
 // wrap, number format, format painter...).
@@ -116,7 +120,13 @@ registerContextMenus();
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
 applyGridlinesToSnapshot(workbookData, config.darkMode);
+stripEditorTextColorFromSnapshot(workbookData);
 univerAPI.createWorkbook(workbookData);
+
+// Strip the editor's forced text color before each cell write lands.
+univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (ev) => {
+  if (ev.id === 'sheet.command.set-range-values' && ev.params) stripEditorTextColor(ev.params.value);
+});
 
 // Restore where the user was last working once the grid has rendered.
 univerAPI.addEvent(univerAPI.Event.LifeCycleChanged, ({ stage }) => {
@@ -198,6 +208,37 @@ function freshWorkbook() {
       },
     },
   };
+}
+
+function isEditorTextColor(style) {
+  const rgb = style && style.cl && style.cl.rgb;
+  return typeof rgb === 'string' && rgb.toLowerCase() === EDITOR_TEXT_COLOR;
+}
+
+// `value` is either a single ICellData or a {row: {col: ICellData}} matrix.
+function stripEditorTextColor(value) {
+  if (!value || typeof value !== 'object') return;
+  const cells = ('v' in value || 's' in value || 'f' in value || 'p' in value)
+    ? [value]
+    : Object.values(value).flatMap((row) => (row && typeof row === 'object' ? Object.values(row) : []));
+  for (const cell of cells) {
+    // Only remove the color; keep the style object itself so Univer's number-format
+    // detection (which runs inside the same command) can still attach its pattern to it.
+    if (cell && cell.s && typeof cell.s === 'object' && isEditorTextColor(cell.s)) delete cell.s.cl;
+  }
+}
+
+function stripEditorTextColorFromSnapshot(snapshot) {
+  for (const style of Object.values(snapshot.styles || {})) {
+    if (isEditorTextColor(style)) delete style.cl;
+  }
+  for (const sheet of Object.values(snapshot.sheets || {})) {
+    for (const row of Object.values(sheet.cellData || {})) {
+      for (const cell of Object.values(row || {})) {
+        if (cell && cell.s && typeof cell.s === 'object' && isEditorTextColor(cell.s)) delete cell.s.cl;
+      }
+    }
+  }
 }
 
 function applyGridlinesToSnapshot(snapshot, dark) {
@@ -340,6 +381,7 @@ function disarmClear() {
 }
 
 $('btn-pin').addEventListener('click', () => api.togglePin());
+$('btn-theme').addEventListener('click', () => api.toggleTheme());
 $('btn-min').addEventListener('click', () => api.hide());
 $('btn-close').addEventListener('click', () => api.hide());
 
@@ -350,6 +392,8 @@ function applyTheme(cfg) {
   document.documentElement.dataset.theme = cfg.darkMode ? 'dark' : 'light';
   $('btn-pin').classList.toggle('is-on', !!cfg.alwaysOnTop);
   $('btn-pin').title = cfg.alwaysOnTop ? 'Always on top: on' : 'Always on top: off';
+  $('btn-theme').innerHTML = cfg.darkMode ? '&#9788;' : '&#9790;';
+  $('btn-theme').title = cfg.darkMode ? 'Switch to light mode' : 'Switch to dark mode';
 }
 
 let toastTimer = null;
