@@ -321,9 +321,114 @@ function focusGrid() {
 }
 
 // ---------------------------------------------------------------------------
-// Title bar actions
+// Floating action button (draggable, expands into the menu)
+// ---------------------------------------------------------------------------
+const fab = $('fab');
+const fabMain = $('fab-main');
+const fabMenu = $('fab-menu');
+const FAB_POS_KEY = 'scratch.fab';
+
+function placeFab(x, y) {
+  const margin = 8;
+  const w = fab.offsetWidth || 36;
+  const h = fabMain.offsetHeight || 36;
+  const maxX = window.innerWidth - w - margin;
+  const maxY = window.innerHeight - h - margin;
+  x = Math.min(Math.max(margin, x), Math.max(margin, maxX));
+  y = Math.min(Math.max(margin, y), Math.max(margin, maxY));
+  fab.style.right = 'auto';
+  fab.style.bottom = 'auto';
+  fab.style.left = `${x}px`;
+  fab.style.top = `${y}px`;
+  // Open the menu toward the side with room, and align it to the near edge.
+  fab.classList.toggle('open-down', y < window.innerHeight / 2);
+  fab.classList.toggle('align-left', x < window.innerWidth / 2);
+}
+
+function loadFabPosition() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null');
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) { placeFab(saved.x, saved.y); return; }
+  } catch { /* ignore */ }
+  placeFab(window.innerWidth - 36 - 22, window.innerHeight - 36 - 22);
+}
+
+function saveFabPosition() {
+  try { localStorage.setItem(FAB_POS_KEY, JSON.stringify({ x: fab.offsetLeft, y: fab.offsetTop })); } catch { /* ignore */ }
+}
+
+function openFabMenu(open) {
+  fabMenu.hidden = !open;
+  fab.classList.toggle('open', open);
+  if (open) {
+    // Keep the expanded menu inside the window.
+    const r = fabMenu.getBoundingClientRect();
+    if (r.right > window.innerWidth) fab.classList.add('align-left');
+    if (r.left < 0) fab.classList.remove('align-left');
+    if (r.bottom > window.innerHeight) fab.classList.remove('open-down');
+    if (r.top < 0) fab.classList.add('open-down');
+  }
+}
+
+// Drag the button; a click (no real movement) toggles the menu.
+(function wireFabDrag() {
+  let start = null;
+  fabMain.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    start = { x: e.clientX, y: e.clientY, left: fab.offsetLeft, top: fab.offsetTop, moved: false };
+    fabMain.setPointerCapture(e.pointerId);
+  });
+  fabMain.addEventListener('pointermove', (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (!start.moved && Math.hypot(dx, dy) < 4) return;
+    if (!start.moved) { start.moved = true; openFabMenu(false); fab.classList.add('dragging'); }
+    placeFab(start.left + dx, start.top + dy);
+  });
+  const finish = (e) => {
+    if (!start) return;
+    const wasDrag = start.moved;
+    start = null;
+    fab.classList.remove('dragging');
+    try { fabMain.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (wasDrag) saveFabPosition();
+    else openFabMenu(fabMenu.hidden);
+  };
+  fabMain.addEventListener('pointerup', finish);
+  fabMain.addEventListener('pointercancel', finish);
+})();
+
+document.addEventListener('pointerdown', (e) => {
+  if (!fabMenu.hidden && !fab.contains(e.target)) openFabMenu(false);
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !fabMenu.hidden) openFabMenu(false);
+});
+window.addEventListener('resize', () => placeFab(fab.offsetLeft, fab.offsetTop));
+loadFabPosition();
+
+// ---------------------------------------------------------------------------
+// Ctrl-drag: hold Ctrl and the whole sheet becomes a drag handle for the window
+// ---------------------------------------------------------------------------
+const dragOverlay = $('drag-overlay');
+function setDragOverlay(on) {
+  if (dragOverlay.hidden === !on) return;
+  dragOverlay.hidden = !on;
+}
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Control' && !e.repeat) setDragOverlay(true);
+}, true);
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'Control') setDragOverlay(false);
+}, true);
+window.addEventListener('blur', () => setDragOverlay(false));
+
+// ---------------------------------------------------------------------------
+// Menu actions
 // ---------------------------------------------------------------------------
 $('btn-copy').addEventListener('click', async () => {
+  openFabMenu(false);
   try {
     const ws = univerAPI.getActiveWorkbook().getActiveSheet();
     const rows = ws.getDataRange().getDisplayValues();
@@ -338,6 +443,7 @@ $('btn-copy').addEventListener('click', async () => {
 });
 
 $('btn-save').addEventListener('click', async () => {
+  openFabMenu(false);
   try {
     const snapshot = univerAPI.getActiveWorkbook().save();
     const res = await api.exportSheet(snapshot);
@@ -356,11 +462,12 @@ $('btn-clear').addEventListener('click', () => {
   const btn = $('btn-clear');
   if (!btn.classList.contains('confirm')) {
     btn.classList.add('confirm');
-    btn.textContent = 'Sure?';
+    btn.lastChild.textContent = 'Sure? Click again';
     clearArmTimer = setTimeout(disarmClear, 3000);
     return;
   }
   disarmClear();
+  openFabMenu(false);
   try {
     const ws = univerAPI.getActiveWorkbook().getActiveSheet();
     ws.clear();
@@ -377,13 +484,13 @@ function disarmClear() {
   clearTimeout(clearArmTimer);
   const btn = $('btn-clear');
   btn.classList.remove('confirm');
-  btn.textContent = 'Clear';
+  btn.lastChild.textContent = 'Clear';
 }
 
 $('btn-pin').addEventListener('click', () => api.togglePin());
 $('btn-theme').addEventListener('click', () => api.toggleTheme());
-$('btn-min').addEventListener('click', () => api.hide());
-$('btn-close').addEventListener('click', () => api.hide());
+$('btn-hide').addEventListener('click', () => { openFabMenu(false); api.hide(); });
+$('btn-quit').addEventListener('click', () => api.quit());
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -391,9 +498,9 @@ $('btn-close').addEventListener('click', () => api.hide());
 function applyTheme(cfg) {
   document.documentElement.dataset.theme = cfg.darkMode ? 'dark' : 'light';
   $('btn-pin').classList.toggle('is-on', !!cfg.alwaysOnTop);
-  $('btn-pin').title = cfg.alwaysOnTop ? 'Always on top: on' : 'Always on top: off';
-  $('btn-theme').innerHTML = cfg.darkMode ? '&#9788;' : '&#9790;';
-  $('btn-theme').title = cfg.darkMode ? 'Switch to light mode' : 'Switch to dark mode';
+  $('btn-theme').querySelector('.fab-ico').innerHTML = cfg.darkMode ? '&#9788;' : '&#9790;';
+  $('btn-theme').lastChild.textContent = cfg.darkMode ? 'Light mode' : 'Dark mode';
+  if (cfg.hotkey) $('fab-hotkey').textContent = cfg.hotkey.replace(/Control/g, 'Ctrl').replace(/\+/g, '+');
 }
 
 let toastTimer = null;

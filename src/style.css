@@ -1,24 +1,26 @@
 :root {
-  --tb-h: 34px;
   --bg: #1b1f24;
-  --tb-bg: #15181d;
-  --tb-fg: #d7dde6;
-  --tb-muted: #8a94a3;
-  --tb-hover: rgba(255, 255, 255, 0.08);
-  --tb-active: rgba(255, 255, 255, 0.16);
+  --panel: #20252c;
+  --fg: #d7dde6;
+  --muted: #8a94a3;
+  --hover: rgba(255, 255, 255, 0.08);
+  --active: rgba(255, 255, 255, 0.16);
   --accent: #14b8a6;
+  --accent-fg: #042f2e;
   --danger: #ef4444;
-  --border: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.09);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
 :root[data-theme="light"] {
   --bg: #ffffff;
-  --tb-bg: #f3f4f6;
-  --tb-fg: #1f2937;
-  --tb-muted: #6b7280;
-  --tb-hover: rgba(0, 0, 0, 0.06);
-  --tb-active: rgba(0, 0, 0, 0.12);
-  --border: rgba(0, 0, 0, 0.08);
+  --panel: #ffffff;
+  --fg: #1f2937;
+  --muted: #6b7280;
+  --hover: rgba(0, 0, 0, 0.06);
+  --active: rgba(0, 0, 0, 0.12);
+  --border: rgba(0, 0, 0, 0.1);
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -30,135 +32,159 @@ html, body {
   background: var(--bg);
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-size: 12px;
-  color: var(--tb-fg);
+  color: var(--fg);
 }
 
-/* ---------- Title bar (Windows Terminal style) ----------
-   The whole bar is a drag region; only the buttons opt out. */
-#titlebar {
-  height: var(--tb-h);
+/* ---------- Sheet fills the window ---------- */
+#sheet {
+  position: absolute;
+  inset: 0;
+}
+
+/* ---------- Ctrl-drag overlay ---------- */
+#drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  -webkit-app-region: drag;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: -2px;
   display: flex;
   align-items: center;
-  background: var(--tb-bg);
-  border-bottom: 1px solid var(--border);
+  justify-content: center;
+  cursor: move;
   user-select: none;
-  -webkit-app-region: drag;
-  padding-left: 10px;
 }
-
-.tb-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: none;
-}
-
-.tb-logo {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+#drag-overlay[hidden] { display: none; }
+#drag-overlay span {
   background: var(--accent);
-  flex: none;
-}
-
-.tb-title {
+  color: var(--accent-fg);
   font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--tb-fg);
+  padding: 6px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
 }
 
-/* Flexible drag handle between the title and the buttons */
-.tb-drag {
-  flex: 1;
-  align-self: stretch;
-  min-width: 24px;
-  -webkit-app-region: drag;
+/* ---------- Floating action button ---------- */
+.fab {
+  position: absolute;
+  z-index: 300;
+  right: 22px;
+  bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  user-select: none;
+  -webkit-app-region: no-drag;
 }
+.fab.dragging { transition: none; }
 
-.tb-actions {
+.fab-main {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--shadow);
+  cursor: grab;
   display: flex;
   align-items: center;
-  gap: 2px;
-  flex: none;
-  padding-right: 4px;
-  -webkit-app-region: no-drag;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  opacity: 0.92;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.fab-main:hover { opacity: 1; transform: scale(1.06); }
+.fab-main:active { cursor: grabbing; transform: scale(0.97); }
+.fab.open .fab-main { transform: rotate(90deg); opacity: 1; }
+.fab-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.tb-right {
+.fab-menu {
   display: flex;
-  align-items: stretch;
-  height: 100%;
-  flex: none;
-  -webkit-app-region: no-drag;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 170px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  transform-origin: bottom right;
+  animation: fab-in 120ms ease-out;
+}
+.fab-menu[hidden] { display: none; }
+.fab.open-up .fab-menu { order: -1; }
+.fab.open-down { flex-direction: column-reverse; }
+.fab.open-down .fab-menu { transform-origin: top right; }
+.fab.align-left { align-items: flex-start; }
+.fab.align-left .fab-menu { transform-origin: bottom left; }
+@keyframes fab-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-.tb-btn {
-  -webkit-app-region: no-drag;
+.fab-item {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--tb-fg);
-  height: 24px;
-  min-width: 26px;
-  padding: 0 7px;
-  border-radius: 4px;
+  color: var(--fg);
   font: inherit;
-  cursor: default;
-  display: inline-flex;
+  font-size: 12.5px;
+  text-align: left;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  line-height: 1;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: default;
+  white-space: nowrap;
 }
-.tb-btn:hover { background: var(--tb-hover); }
-.tb-btn:active { background: var(--tb-active); }
-.tb-btn.is-on { background: var(--tb-active); color: var(--accent); }
-.tb-btn:disabled { opacity: 0.4; }
-.tb-text { font-size: 11.5px; }
-.tb-danger:hover { color: var(--danger); }
-.tb-danger.confirm { background: var(--danger); color: #fff; }
-
-/* Window controls */
-.tb-win {
-  height: 100%;
-  width: 40px;
-  border-radius: 0;
-  font-size: 12px;
-  color: var(--tb-muted);
-  padding: 0;
+.fab-item:hover { background: var(--hover); }
+.fab-item:active { background: var(--active); }
+.fab-item.is-on .fab-ico { color: var(--accent); }
+.fab-item.is-on::after { content: "on"; margin-left: auto; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+.fab-danger:hover { color: var(--danger); }
+.fab-danger.confirm { background: var(--danger); color: #fff; }
+.fab-muted { color: var(--muted); }
+.fab-ico {
+  width: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
 }
-.tb-win:hover { color: var(--tb-fg); }
-.tb-close:hover { background: #c42b1c; color: #fff; }
-#btn-pin { font-size: 9px; }
-#btn-theme { font-size: 13px; }
-#btn-pin.is-on { color: var(--accent); background: transparent; }
-
-/* ---------- Sheet ---------- */
-#sheet {
-  position: absolute;
-  top: var(--tb-h);
-  left: 0;
-  right: 0;
-  bottom: 0;
+.fab-item kbd {
+  margin-left: auto;
+  font: 10px/1 "Segoe UI", system-ui, sans-serif;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 5px;
 }
+.fab-sep { height: 1px; background: var(--border); margin: 4px 6px; }
 
 /* ---------- Toast ---------- */
 #toast {
   position: absolute;
-  top: calc(var(--tb-h) + 10px);
+  top: 44px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 100;
+  z-index: 400;
   background: var(--accent);
-  color: #042f2e;
+  color: var(--accent-fg);
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 999px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
   pointer-events: none;
 }
 #toast.error { background: var(--danger); color: #fff; }
@@ -166,7 +192,6 @@ html, body {
 /* ---------- Univer overrides: one compact row, Sheets-style glyphs ---------- */
 #sheet [data-u-comp="workbench-layout"] { position: relative; }
 
-/* Toolbar: pull it out of the flow and park it at the right end of the formula bar row */
 /* The toolbar hides items that do not fit its container, so it needs a real width here. */
 #sheet { --mini-toolbar-w: 236px; }
 #sheet [data-u-comp="headerbar"] {
@@ -181,16 +206,19 @@ html, body {
   overflow: visible;
 }
 #sheet [data-u-comp="headerbar"] > div { height: 28px !important; }
-#sheet [data-u-comp="ribbon-toolbar"] { justify-content: flex-end; }
 #sheet [data-u-comp="ribbon-header-menu"] { display: none; }
+#sheet [data-u-comp="ribbon-toolbar"] { justify-content: flex-end; }
 
-/* Formula bar: full width minus the toolbar, no name box, no x / check / fx */
+/* Formula bar: [A1 v] [fx] [formula .....................] [bucket % $ .0 .00] */
 #sheet [data-u-comp="formula-bar"] {
   height: 28px !important;
-  padding-right: var(--mini-toolbar-w, 170px);
+  padding-right: var(--mini-toolbar-w);
 }
-#sheet [data-u-comp="formula-bar"] > div:first-child { display: none; }
-#sheet [data-u-comp="formula-bar-actions"] { display: none; }
+/* keep the name box, but trim it like Sheets */
+#sheet [data-u-comp="formula-bar"] > div:first-child { width: 72px !important; }
+/* actions: hide the x and check, keep the fx label */
+#sheet [data-u-comp="formula-bar-actions"] > :not(:last-child) { display: none; }
+#sheet [data-u-comp="formula-bar-actions"] > :last-child { pointer-events: none; opacity: 0.7; font-style: italic; }
 #sheet [data-u-comp="formula-bar"] div.univer-w-5.univer-h-full { display: none; } /* expand arrow */
 
 /* No hover tooltips anywhere */
@@ -202,7 +230,7 @@ html, body {
 
 /* Toolbar glyphs always follow the theme text color, even when Univer marks them disabled */
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command],
-#sheet [data-u-comp="ribbon-toolbar"] [data-u-command] svg { color: var(--tb-fg) !important; }
+#sheet [data-u-comp="ribbon-toolbar"] [data-u-command] svg { color: var(--fg) !important; }
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command][disabled],
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command][aria-disabled="true"] { opacity: 0.45; }
 

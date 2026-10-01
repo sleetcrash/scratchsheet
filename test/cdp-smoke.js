@@ -59,15 +59,29 @@ async function main() {
   const title = await evaluate('document.title');
   check('page title', title === 'Scratch Sheet', title);
   check('univerAPI exposed', await evaluate('typeof window.univerAPI === "object"'));
-  check('drag handle present', await evaluate('document.querySelector(".tb-drag").getBoundingClientRect().width > 40'));
+  check('no title bar', await evaluate('!document.getElementById("titlebar")'));
+  check('name box visible (A1)', await evaluate('(() => { const e = document.querySelector("[data-u-comp=defined-name]"); return !!e && e.getBoundingClientRect().width > 30; })()'));
+  check('fx label visible, x/check hidden', await evaluate('(() => { const kids = [...document.querySelector("[data-u-comp=formula-bar-actions]").children]; const vis = kids.map(k => k.getBoundingClientRect().width > 0); return vis.length >= 3 && !vis[0] && !vis[1] && vis[vis.length - 1]; })()'));
+  // Ctrl held -> drag overlay appears; released -> gone
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, modifiers: 2 });
+  await sleep(100);
+  check('ctrl shows drag overlay', await evaluate('!document.getElementById("drag-overlay").hidden'));
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17 });
+  await sleep(100);
+  check('ctrl release hides drag overlay', await evaluate('document.getElementById("drag-overlay").hidden'));
+  // FAB opens and closes
+  await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
+  await sleep(150);
+  check('fab click opens menu', await evaluate('!document.getElementById("fab-menu").hidden'));
+  await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
+  await sleep(150);
+  check('fab click again closes menu', await evaluate('document.getElementById("fab-menu").hidden'));
   const visibleToolbar = await evaluate('[...document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]")].map(e => e.dataset.uCommand)');
   check('toolbar is exactly fill % $ .0 .00', JSON.stringify([...visibleToolbar].sort()) === JSON.stringify([
     'sheet.command.numfmt.add.decimal.command', 'sheet.command.numfmt.set.currency', 'sheet.command.numfmt.set.percent',
     'sheet.command.numfmt.subtract.decimal.command', 'sheet.command.set-background-color',
   ]), JSON.stringify(visibleToolbar));
   check('toolbar sits on the formula bar row', await evaluate('Math.abs(document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect().top - document.querySelector("[data-u-comp=formula-bar]").getBoundingClientRect().top) < 2'));
-  check('name box hidden', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=defined-name]").parentElement).display === "none"'));
-  check('formula bar x/check/fx hidden', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=formula-bar-actions]")).display === "none"'));
   check('percent button shows % glyph', await evaluate('getComputedStyle(document.querySelector("[data-u-command=\\"sheet.command.numfmt.set.percent\\"]"), "::before").content === "\\"%\\""'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
@@ -260,8 +274,8 @@ async function main() {
 
   // --- Clear is two-step
   await evaluate(`document.getElementById('btn-clear').click()`);
-  const armed = await evaluate(`document.getElementById('btn-clear').textContent`);
-  check('clear arms first', armed === 'Sure?', armed);
+  const armed = await evaluate(`document.getElementById('btn-clear').classList.contains('confirm')`);
+  check('clear arms first', armed === true, String(armed));
   const stillThere = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getValue()`);
   check('first click does not clear', stillThere === 845, JSON.stringify(stillThere));
   await evaluate(`document.getElementById('btn-clear').click()`);

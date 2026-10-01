@@ -276,6 +276,7 @@ ipcMain.handle('sheet:export', async (_e, snapshot) => {
 });
 
 ipcMain.on('window:hide', () => win && win.hide());
+ipcMain.on('app:quit', () => { quitting = true; app.quit(); });
 ipcMain.on('window:toggle-theme', () => {
   config.darkMode = !config.darkMode;
   saveConfig();

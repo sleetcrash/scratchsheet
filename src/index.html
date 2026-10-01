@@ -7,26 +7,31 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <header id="titlebar">
-    <div class="tb-left">
-      <span class="tb-logo" aria-hidden="true"></span>
-      <span class="tb-title">Scratch Sheet</span>
-    </div>
-    <div class="tb-drag" title="Drag to move"></div>
-    <div class="tb-actions">
-      <button id="btn-copy" class="tb-btn tb-text" title="Copy everything on the sheet">Copy all</button>
-      <button id="btn-save" class="tb-btn tb-text" title="Save as .xlsx">Save</button>
-      <button id="btn-clear" class="tb-btn tb-text tb-danger" title="Clear the whole sheet">Clear</button>
-    </div>
-    <div class="tb-right">
-      <button id="btn-theme" class="tb-btn tb-win" title="Light / dark mode">&#9790;</button>
-      <button id="btn-pin" class="tb-btn tb-win" title="Always on top">&#9650;</button>
-      <button id="btn-min" class="tb-btn tb-win" title="Hide to tray">&#8211;</button>
-      <button id="btn-close" class="tb-btn tb-win tb-close" title="Hide to tray">&#10005;</button>
-    </div>
-  </header>
-  <div id="toast" hidden></div>
+  <!-- The sheet is the whole window. No title bar: hold Ctrl and drag anywhere to move. -->
   <main id="sheet"></main>
+
+  <!-- Shown while Ctrl is held: a transparent drag region over the cells -->
+  <div id="drag-overlay" hidden><span>Drag to move</span></div>
+
+  <!-- Floating action button: drag it anywhere, click to expand -->
+  <div id="fab" class="fab">
+    <div id="fab-menu" class="fab-menu" hidden>
+      <button id="btn-copy" class="fab-item" title="Copy everything on the sheet"><span class="fab-ico">&#10697;</span>Copy all</button>
+      <button id="btn-save" class="fab-item" title="Save as .xlsx"><span class="fab-ico">&#8681;</span>Save .xlsx</button>
+      <button id="btn-clear" class="fab-item fab-danger" title="Clear the whole sheet"><span class="fab-ico">&#10006;</span>Clear</button>
+      <span class="fab-sep"></span>
+      <button id="btn-theme" class="fab-item" title="Light / dark mode"><span class="fab-ico">&#9790;</span>Theme</button>
+      <button id="btn-pin" class="fab-item" title="Always on top"><span class="fab-ico">&#9650;</span>Always on top</button>
+      <span class="fab-sep"></span>
+      <button id="btn-hide" class="fab-item" title="Hide to tray"><span class="fab-ico">&#8211;</span>Hide <kbd id="fab-hotkey"></kbd></button>
+      <button id="btn-quit" class="fab-item fab-muted" title="Quit Scratch Sheet"><span class="fab-ico">&#9211;</span>Quit</button>
+    </div>
+    <button id="fab-main" class="fab-main" title="Menu (drag to move)" aria-label="Menu">
+      <span class="fab-dot"></span><span class="fab-dot"></span><span class="fab-dot"></span>
+    </button>
+  </div>
+
+  <div id="toast" hidden></div>
   <script type="module" src="./main.js"></script>
 </body>
 </html>

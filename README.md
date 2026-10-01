@@ -6,16 +6,16 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 
 ## Features
 
-- Frameless, resizable window with a Windows Terminal style header bar that doubles as the drag handle
+- No title bar at all. Hold **Ctrl** and drag anywhere on the sheet to move the window; resize from any edge
 - Full formula engine (Univer): `SUM`, `AVERAGE`, `IF`, `ROUND`, `VLOOKUP`, `CONCATENATE` and hundreds more
 - Typing `$12,133` or `5.7%` keeps the number and applies the format, like Sheets
-- One compact row: the formula bar plus paint bucket, `%`, `$`, `.0←`, `.00→`, drawn like Google Sheets
+- Formula bar like Sheets: `A1 ▾`, `fx`, the formula, then paint bucket, `%`, `$`, `.0←`, `.00→`
 - Right-click a cell for **Number format** (Automatic, Number, Percent, Currency, Date, Time, Plain text) and **Align**
 - Bold, italic, undo, redo are keyboard only: Ctrl+B, Ctrl+I, Ctrl+Z, Ctrl+Y
-- Title bar actions: **Copy all** (tab-separated, pastes straight into Sheets or Excel), **Save** (.xlsx), **Clear** (two-step, undoable with Ctrl+Z)
+- A small floating button (drag it anywhere) expands into the menu: **Copy all** (tab-separated, pastes straight into Sheets or Excel), **Save** (.xlsx), **Clear** (two-step, undoable with Ctrl+Z), theme, always on top, hide, quit
 - Global show/hide hotkey, default `Ctrl+Alt+Space`
 - Launches at login, hidden in the tray. Close and minimize both hide to the tray. Quit is in the tray menu
-- Dark mode by default; the sun/moon button in the title bar (or the tray menu) switches to light mode
+- Dark mode by default; switch in the floating menu or the tray menu
 - Autosave with atomic writes, including scroll position and active cell
 
 ## Setup
