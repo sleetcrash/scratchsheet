@@ -22,10 +22,12 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 
 ```powershell
 npm install
-npm run build        # builds the renderer and packages release\win-unpacked\Scratch Sheet.exe
+npm run build        # builds the renderer and the installer: release\Scratch Sheet Setup <version>.exe
 ```
 
-Run `release\win-unpacked\Scratch Sheet.exe` once. It registers itself to launch at login (hidden) and from then on you only need the hotkey.
+Run the installer once. It is a per-user install (no admin prompt) into `%LOCALAPPDATA%\Programs\scratchsheet`, adds a Start Menu entry and an uninstaller under Settings > Apps. On first launch the app registers itself to start hidden at login; after that you only need the hotkey. Your sheet lives in `%APPDATA%\Scratch Sheet\` and survives reinstalls and uninstalls.
+
+To update: quit from the tray, run the new installer, start it from the Start Menu.
 
 ### Hotkey on a Logitech G key
 
@@ -35,6 +37,7 @@ G keys only send whatever G HUB assigns them, so map a G key to the combo `Ctrl+
 
 ```powershell
 npm run dev          # vite build + electron .
+npm run build:dir    # unpacked build in release\win-unpacked (no installer)
 npm test             # DevTools Protocol smoke test against an instance started with --remote-debugging-port=9222
 # QUIET=1 never shows the window (skips right-click steps); SKIP_CLIPBOARD=1 skips the Copy-all check
 ```

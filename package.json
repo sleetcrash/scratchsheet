@@ -5,10 +5,11 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite build && electron .",
-    "build": "vite build && electron-builder --win dir",
+    "build": "vite build && electron-builder --win nsis",
     "start": "electron .",
     "icon": "node build/make-icon.js",
-    "test": "node test/cdp-smoke.js"
+    "test": "node test/cdp-smoke.js",
+    "build:dir": "vite build && electron-builder --win dir"
   },
   "keywords": [],
   "author": "PatientBird",
@@ -39,7 +40,19 @@
       "package.json"
     ],
     "win": {
-      "target": "dir"
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Scratch Sheet Setup ${version}.exe"
     }
   }
 }
