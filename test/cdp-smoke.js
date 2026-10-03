@@ -83,7 +83,17 @@ async function main() {
     'sheet.command.numfmt.add.decimal.command', 'sheet.command.numfmt.set.currency', 'sheet.command.numfmt.set.percent',
     'sheet.command.numfmt.subtract.decimal.command', 'sheet.command.set-background-color',
   ]), JSON.stringify(visibleToolbar));
-  check('toolbar sits on the formula bar row', await evaluate('Math.abs(document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect().top - document.querySelector("[data-u-comp=formula-bar]").getBoundingClientRect().top) < 2'));
+  check('corner strip at top-right', await evaluate('(() => { const r = document.getElementById("corner").getBoundingClientRect(); return r.top === 0 && Math.abs(r.right - window.innerWidth) < 1 && !!document.getElementById("btn-save") && !!document.getElementById("btn-clear") && !!document.getElementById("btn-hide"); })()'));
+  check('format pill hidden by default', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "hidden"'));
+  const tapFab = (id) => evaluate(`(() => { const b = document.getElementById('${id}'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
+  await tapFab('fab-format');
+  await sleep(300);
+  check('format circle opens pill', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "visible"'));
+  check('format pill inside window, beside circles', await evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const f = document.getElementById("fab").getBoundingClientRect(); const inside = p.left >= 0 && p.top >= 0 && p.right <= window.innerWidth && p.bottom <= window.innerHeight; const beside = Math.abs((p.top + p.height / 2) - (f.top + f.height / 2)) < 12 || Math.abs(p.bottom - f.top) < 20 || Math.abs(p.top - f.bottom) < 20; return inside && beside; })()'));
+  check('format pill shows all five tools', await evaluate('document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]").length === 5'));
+  await tapFab('fab-format');
+  await sleep(200);
+  check('format circle closes pill', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "hidden"'));
   check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 

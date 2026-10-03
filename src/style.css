@@ -67,18 +67,68 @@ html, body {
   pointer-events: none;
 }
 
-/* ---------- Floating action button ---------- */
+/* ---------- Icon masks (Material Symbols) ---------- */
+.ico {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask: center / contain no-repeat;
+  mask: center / contain no-repeat;
+}
+.ico-palette { -webkit-mask-image: url(./icons/palette.svg); mask-image: url(./icons/palette.svg); }
+.ico-close { -webkit-mask-image: url(./icons/close.svg); mask-image: url(./icons/close.svg); width: 16px; height: 16px; }
+
+/* ---------- Top-right corner: Save | Clear | x ---------- */
+#corner {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 28px;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-bottom-left-radius: 8px;
+  -webkit-app-region: no-drag;
+}
+.corner-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+}
+.corner-btn:hover { background: var(--hover); color: var(--fg); }
+.corner-btn:active { background: var(--active); }
+.corner-danger:hover { color: var(--danger); }
+.corner-danger.confirm { background: var(--danger); color: #fff; }
+.corner-close { width: 28px; padding: 0; justify-content: center; }
+.corner-close:hover { background: #c42b1c; color: #fff; }
+
+/* ---------- Floating circles ---------- */
 .fab {
   position: absolute;
   z-index: 300;
-  width: 36px;
-  height: 36px;
+  display: flex;
+  gap: 8px;
   user-select: none;
   -webkit-app-region: no-drag;
 }
 .fab.dragging { transition: none; }
 
-.fab-main {
+.fab-circle {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -95,9 +145,11 @@ html, body {
   opacity: 0.92;
   transition: transform 120ms ease, opacity 120ms ease;
 }
-.fab-main:hover { opacity: 1; transform: scale(1.06); }
-.fab-main:active { cursor: grabbing; transform: scale(0.97); }
-.fab.open .fab-main { transform: rotate(90deg); opacity: 1; }
+.fab-circle:hover { opacity: 1; transform: scale(1.06); }
+.fab-circle:active { cursor: grabbing; transform: scale(0.97); }
+.fab-circle-alt { background: var(--panel); color: var(--fg); border: 1px solid var(--border); }
+.fab.open #fab-main { transform: rotate(90deg); opacity: 1; }
+.fab.fmt-open #fab-format { opacity: 1; color: var(--accent); }
 .fab-dot {
   width: 4px;
   height: 4px;
@@ -189,30 +241,42 @@ html, body {
 /* ---------- Univer overrides: one compact row, Sheets-style glyphs ---------- */
 #sheet [data-u-comp="workbench-layout"] { position: relative; }
 
-/* The toolbar hides items that do not fit its container, so it needs a real width here. */
-#sheet { --mini-toolbar-w: 236px; }
+/* Univer's toolbar is detached and floated as a pill next to the format circle.
+   It hides items that do not fit its container, so it needs a real width. JS sets left/top. */
+#sheet { --fmt-pill-w: 252px; --corner-w: 150px; }
 #sheet [data-u-comp="headerbar"] {
   position: absolute;
   top: 0;
-  right: 0;
-  left: auto;
-  width: var(--mini-toolbar-w);
-  height: 28px;
-  z-index: 20;
-  background: transparent;
+  left: 0;
+  width: var(--fmt-pill-w);
+  height: 36px;
+  z-index: 320;
+  /* visibility (not display) so the toolbar can measure its width while closed */
+  visibility: hidden;
+  pointer-events: none;
+  padding: 0 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
   overflow: visible;
+  animation: fab-in 120ms ease-out;
 }
-#sheet [data-u-comp="headerbar"] > div { height: 28px !important; }
+#sheet[data-fmt-open] [data-u-comp="headerbar"] { visibility: visible; pointer-events: auto; }
+#sheet [data-u-comp="headerbar"] > div { height: 34px !important; }
 #sheet [data-u-comp="ribbon-header-menu"] { display: none; }
-#sheet [data-u-comp="ribbon-toolbar"] { justify-content: flex-end; }
+#sheet [data-u-comp="ribbon-toolbar"] { justify-content: center; }
 
-/* Formula bar: [A1 v] [fx] [formula .....................] [bucket % $ .0 .00] */
+/* Formula bar: [A1 v] [fx] [formula .....................] (corner strip on the right) */
 #sheet [data-u-comp="formula-bar"] {
   height: 28px !important;
-  padding-right: var(--mini-toolbar-w);
+  padding-right: var(--corner-w);
 }
-/* keep the name box, but trim it like Sheets */
-#sheet [data-u-comp="formula-bar"] > div:first-child { width: 72px !important; }
+/* name box: same width as the row-number column so their edges line up; no caret */
+#sheet { --row-header-w: 48px; }
+#sheet [data-u-comp="formula-bar"] > div:first-child { width: var(--row-header-w) !important; }
+#sheet [data-u-comp="defined-name"] svg { display: none; }
+#sheet [data-u-comp="defined-name"] { padding-right: 0 !important; }
 /* actions: hide the x and check, keep the fx label */
 #sheet [data-u-comp="formula-bar-actions"] > :not(:last-child) { display: none; }
 #sheet [data-u-comp="formula-bar-actions"] > :last-child { pointer-events: none; opacity: 0.7; font-style: italic; }

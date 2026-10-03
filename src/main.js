@@ -131,6 +131,8 @@ univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, (ev) => {
 // Restore where the user was last working once the grid has rendered.
 univerAPI.addEvent(univerAPI.Event.LifeCycleChanged, ({ stage }) => {
   if (stage !== univerAPI.Enum.LifecycleStages.Rendered) return;
+  // The snapshot's rowHeader.width is not honored reliably; set it through the UI facade.
+  try { univerAPI.getActiveWorkbook().getActiveSheet().setRowHeaderWidth(ROW_HEADER_W); } catch (err) { console.warn('row header width', err); }
   restorePosition(saved && saved.__scratch);
 });
 
@@ -202,7 +204,7 @@ function freshWorkbook() {
         cellData: {},
         rowData: {},
         columnData: {},
-        rowHeader: { width: 40 },
+        rowHeader: { width: 48 },
         columnHeader: { height: 22 },
         showGridlines: 1,
       },
@@ -241,10 +243,14 @@ function stripEditorTextColorFromSnapshot(snapshot) {
   }
 }
 
+// Row-number column width; the name box above it is given the same width in CSS (--row-header-w).
+const ROW_HEADER_W = 48;
+
 function applyGridlinesToSnapshot(snapshot, dark) {
   for (const sheet of Object.values(snapshot.sheets || {})) {
     sheet.showGridlines = 1;
     sheet.gridlinesColor = dark ? GRIDLINES.dark : GRIDLINES.light;
+    sheet.rowHeader = { ...(sheet.rowHeader || {}), width: ROW_HEADER_W };
   }
 }
 
@@ -328,12 +334,16 @@ const fabMain = $('fab-main');
 const fabMenu = $('fab-menu');
 const FAB_POS_KEY = 'scratch.fab';
 
-const FAB_SIZE = 36;
+const FAB_SIZE = 36;          // one circle
+const FAB_GAP = 8;
+const FAB_CLUSTER_W = FAB_SIZE * 2 + FAB_GAP;  // two circles side by side
 const FAB_MARGIN = 8;
+const fabFormat = $('fab-format');
+const sheetEl = $('sheet');
 
 // The container is exactly the round button; the menu is absolutely positioned off it.
 function placeFab(x, y) {
-  const maxX = window.innerWidth - FAB_SIZE - FAB_MARGIN;
+  const maxX = window.innerWidth - FAB_CLUSTER_W - FAB_MARGIN;
   const maxY = window.innerHeight - FAB_SIZE - FAB_MARGIN;
   x = Math.min(Math.max(FAB_MARGIN, x), Math.max(FAB_MARGIN, maxX));
   y = Math.min(Math.max(FAB_MARGIN, y), Math.max(FAB_MARGIN, maxY));
@@ -341,7 +351,8 @@ function placeFab(x, y) {
   fab.style.top = `${y}px`;
   // Open toward the side with more room.
   fab.classList.toggle('open-down', y + FAB_SIZE / 2 < window.innerHeight / 2);
-  fab.classList.toggle('align-left', x + FAB_SIZE / 2 < window.innerWidth / 2);
+  fab.classList.toggle('align-left', x + FAB_CLUSTER_W / 2 < window.innerWidth / 2);
+  if (sheetEl.hasAttribute('data-fmt-open')) positionFormatPill();
 }
 
 // Stored as fractions of the window so the button keeps its corner when the note is resized.
@@ -353,7 +364,7 @@ function loadFabPosition() {
       return;
     }
   } catch { /* ignore */ }
-  placeFab(window.innerWidth - FAB_SIZE - 22, window.innerHeight - FAB_SIZE - 22);
+  placeFab(window.innerWidth - FAB_CLUSTER_W - 22, window.innerHeight - FAB_SIZE - 22);
 }
 
 function saveFabPosition() {
@@ -366,6 +377,7 @@ function openFabMenu(open) {
   fabMenu.hidden = !open;
   fab.classList.toggle('open', open);
   fabMenu.style.transform = '';
+  if (open) openFormatPill(false);
   if (!open) return;
   // Nudge the expanded menu back inside the window if it still pokes out.
   const r = fabMenu.getBoundingClientRect();
@@ -378,20 +390,54 @@ function openFabMenu(open) {
   if (dx || dy) fabMenu.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
 }
 
-// Drag the button; a click (no real movement) toggles the menu.
-(function wireFabDrag() {
+// Univer's toolbar (fill, %, $, .0, .00) floats as a pill beside the format circle.
+function headerbar() { return sheetEl.querySelector('[data-u-comp="headerbar"]'); }
+
+function positionFormatPill() {
+  const bar = headerbar();
+  if (!bar) return;
+  const pillW = bar.offsetWidth || 236;
+  const pillH = bar.offsetHeight || 36;
+  const gap = 10;
+  const rightSide = fab.classList.contains('align-left');
+  let x = rightSide ? fab.offsetLeft + FAB_CLUSTER_W + gap : fab.offsetLeft - gap - pillW;
+  let y = fab.offsetTop + (FAB_SIZE - pillH) / 2;
+  // Fall back to above/below the circles when there is no room beside them.
+  if (x < 4 || x + pillW > window.innerWidth - 4) {
+    x = Math.min(Math.max(4, fab.offsetLeft + FAB_CLUSTER_W / 2 - pillW / 2), window.innerWidth - 4 - pillW);
+    y = fab.offsetTop > window.innerHeight / 2 ? fab.offsetTop - gap - pillH : fab.offsetTop + FAB_SIZE + gap;
+  }
+  y = Math.min(Math.max(4, y), window.innerHeight - 4 - pillH);
+  bar.style.left = `${Math.round(x)}px`;
+  bar.style.top = `${Math.round(y)}px`;
+}
+
+function openFormatPill(open) {
+  if (open) {
+    openFabMenu(false);
+    sheetEl.setAttribute('data-fmt-open', '');
+    fab.classList.add('fmt-open');
+    positionFormatPill();
+  } else {
+    sheetEl.removeAttribute('data-fmt-open');
+    fab.classList.remove('fmt-open');
+  }
+}
+
+// Drag either circle to move the pair; a click (no real movement) toggles that circle's menu.
+function wireFabDrag(button, onClick) {
   let start = null;
-  fabMain.addEventListener('pointerdown', (e) => {
+  button.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     start = { x: e.clientX, y: e.clientY, left: fab.offsetLeft, top: fab.offsetTop, moved: false };
-    fabMain.setPointerCapture(e.pointerId);
+    button.setPointerCapture(e.pointerId);
   });
-  fabMain.addEventListener('pointermove', (e) => {
+  button.addEventListener('pointermove', (e) => {
     if (!start) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     if (!start.moved && Math.hypot(dx, dy) < 4) return;
-    if (!start.moved) { start.moved = true; openFabMenu(false); fab.classList.add('dragging'); }
+    if (!start.moved) { start.moved = true; openFabMenu(false); openFormatPill(false); fab.classList.add('dragging'); }
     placeFab(start.left + dx, start.top + dy);
   });
   const finish = (e) => {
@@ -399,21 +445,28 @@ function openFabMenu(open) {
     const wasDrag = start.moved;
     start = null;
     fab.classList.remove('dragging');
-    try { fabMain.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    try { button.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     if (wasDrag) saveFabPosition();
-    else openFabMenu(fabMenu.hidden);
+    else onClick();
   };
-  fabMain.addEventListener('pointerup', finish);
-  fabMain.addEventListener('pointercancel', finish);
-})();
+  button.addEventListener('pointerup', finish);
+  button.addEventListener('pointercancel', finish);
+}
+wireFabDrag(fabMain, () => openFabMenu(fabMenu.hidden));
+wireFabDrag(fabFormat, () => openFormatPill(!sheetEl.hasAttribute('data-fmt-open')));
 
 document.addEventListener('pointerdown', (e) => {
   if (!fabMenu.hidden && !fab.contains(e.target)) openFabMenu(false);
+  const bar = headerbar();
+  if (sheetEl.hasAttribute('data-fmt-open') && !fab.contains(e.target) && !(bar && bar.contains(e.target))
+      && !e.target.closest('[data-radix-popper-content-wrapper], .univer-popup, [role="menu"]')) {
+    openFormatPill(false);
+  }
 }, true);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !fabMenu.hidden) openFabMenu(false);
+  if (e.key === 'Escape') { openFabMenu(false); openFormatPill(false); }
 });
-window.addEventListener('resize', () => { openFabMenu(false); loadFabPosition(); });
+window.addEventListener('resize', () => { openFabMenu(false); openFormatPill(false); loadFabPosition(); });
 loadFabPosition();
 
 // ---------------------------------------------------------------------------
@@ -451,7 +504,6 @@ $('btn-copy').addEventListener('click', async () => {
 });
 
 $('btn-save').addEventListener('click', async () => {
-  openFabMenu(false);
   try {
     const snapshot = univerAPI.getActiveWorkbook().save();
     const res = await api.exportSheet(snapshot);
@@ -470,12 +522,11 @@ $('btn-clear').addEventListener('click', () => {
   const btn = $('btn-clear');
   if (!btn.classList.contains('confirm')) {
     btn.classList.add('confirm');
-    btn.lastChild.textContent = 'Sure? Click again';
+    btn.textContent = 'Sure?';
     clearArmTimer = setTimeout(disarmClear, 3000);
     return;
   }
   disarmClear();
-  openFabMenu(false);
   try {
     const ws = univerAPI.getActiveWorkbook().getActiveSheet();
     ws.clear();
@@ -492,12 +543,12 @@ function disarmClear() {
   clearTimeout(clearArmTimer);
   const btn = $('btn-clear');
   btn.classList.remove('confirm');
-  btn.lastChild.textContent = 'Clear';
+  btn.textContent = 'Clear';
 }
 
 $('btn-pin').addEventListener('click', () => api.togglePin());
 $('btn-theme').addEventListener('click', () => api.toggleTheme());
-$('btn-hide').addEventListener('click', () => { openFabMenu(false); api.hide(); });
+$('btn-hide').addEventListener('click', () => api.hide());
 $('btn-quit').addEventListener('click', () => api.quit());
 
 // ---------------------------------------------------------------------------
