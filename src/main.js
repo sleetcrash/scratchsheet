@@ -328,46 +328,54 @@ const fabMain = $('fab-main');
 const fabMenu = $('fab-menu');
 const FAB_POS_KEY = 'scratch.fab';
 
+const FAB_SIZE = 36;
+const FAB_MARGIN = 8;
+
+// The container is exactly the round button; the menu is absolutely positioned off it.
 function placeFab(x, y) {
-  const margin = 8;
-  const w = fab.offsetWidth || 36;
-  const h = fabMain.offsetHeight || 36;
-  const maxX = window.innerWidth - w - margin;
-  const maxY = window.innerHeight - h - margin;
-  x = Math.min(Math.max(margin, x), Math.max(margin, maxX));
-  y = Math.min(Math.max(margin, y), Math.max(margin, maxY));
-  fab.style.right = 'auto';
-  fab.style.bottom = 'auto';
+  const maxX = window.innerWidth - FAB_SIZE - FAB_MARGIN;
+  const maxY = window.innerHeight - FAB_SIZE - FAB_MARGIN;
+  x = Math.min(Math.max(FAB_MARGIN, x), Math.max(FAB_MARGIN, maxX));
+  y = Math.min(Math.max(FAB_MARGIN, y), Math.max(FAB_MARGIN, maxY));
   fab.style.left = `${x}px`;
   fab.style.top = `${y}px`;
-  // Open the menu toward the side with room, and align it to the near edge.
-  fab.classList.toggle('open-down', y < window.innerHeight / 2);
-  fab.classList.toggle('align-left', x < window.innerWidth / 2);
+  // Open toward the side with more room.
+  fab.classList.toggle('open-down', y + FAB_SIZE / 2 < window.innerHeight / 2);
+  fab.classList.toggle('align-left', x + FAB_SIZE / 2 < window.innerWidth / 2);
 }
 
+// Stored as fractions of the window so the button keeps its corner when the note is resized.
 function loadFabPosition() {
   try {
     const saved = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null');
-    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) { placeFab(saved.x, saved.y); return; }
+    if (saved && Number.isFinite(saved.fx) && Number.isFinite(saved.fy)) {
+      placeFab(saved.fx * window.innerWidth, saved.fy * window.innerHeight);
+      return;
+    }
   } catch { /* ignore */ }
-  placeFab(window.innerWidth - 36 - 22, window.innerHeight - 36 - 22);
+  placeFab(window.innerWidth - FAB_SIZE - 22, window.innerHeight - FAB_SIZE - 22);
 }
 
 function saveFabPosition() {
-  try { localStorage.setItem(FAB_POS_KEY, JSON.stringify({ x: fab.offsetLeft, y: fab.offsetTop })); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(FAB_POS_KEY, JSON.stringify({ fx: fab.offsetLeft / window.innerWidth, fy: fab.offsetTop / window.innerHeight }));
+  } catch { /* ignore */ }
 }
 
 function openFabMenu(open) {
   fabMenu.hidden = !open;
   fab.classList.toggle('open', open);
-  if (open) {
-    // Keep the expanded menu inside the window.
-    const r = fabMenu.getBoundingClientRect();
-    if (r.right > window.innerWidth) fab.classList.add('align-left');
-    if (r.left < 0) fab.classList.remove('align-left');
-    if (r.bottom > window.innerHeight) fab.classList.remove('open-down');
-    if (r.top < 0) fab.classList.add('open-down');
-  }
+  fabMenu.style.transform = '';
+  if (!open) return;
+  // Nudge the expanded menu back inside the window if it still pokes out.
+  const r = fabMenu.getBoundingClientRect();
+  let dx = 0;
+  let dy = 0;
+  if (r.right > window.innerWidth - 4) dx = window.innerWidth - 4 - r.right;
+  if (r.left < 4) dx = 4 - r.left;
+  if (r.bottom > window.innerHeight - 4) dy = window.innerHeight - 4 - r.bottom;
+  if (r.top < 4) dy = 4 - r.top;
+  if (dx || dy) fabMenu.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
 }
 
 // Drag the button; a click (no real movement) toggles the menu.
@@ -405,7 +413,7 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !fabMenu.hidden) openFabMenu(false);
 });
-window.addEventListener('resize', () => placeFab(fab.offsetLeft, fab.offsetTop));
+window.addEventListener('resize', () => { openFabMenu(false); loadFabPosition(); });
 loadFabPosition();
 
 // ---------------------------------------------------------------------------

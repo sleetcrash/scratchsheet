@@ -73,6 +73,8 @@ async function main() {
   await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
   await sleep(150);
   check('fab click opens menu', await evaluate('!document.getElementById("fab-menu").hidden'));
+  check('fab menu fully inside window', await evaluate('(() => { const r = document.getElementById("fab-menu").getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight; })()'));
+  check('fab button still reachable', await evaluate('(() => { const r = document.getElementById("fab-main").getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight; })()'));
   await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
   await sleep(150);
   check('fab click again closes menu', await evaluate('document.getElementById("fab-menu").hidden'));
@@ -82,7 +84,7 @@ async function main() {
     'sheet.command.numfmt.subtract.decimal.command', 'sheet.command.set-background-color',
   ]), JSON.stringify(visibleToolbar));
   check('toolbar sits on the formula bar row', await evaluate('Math.abs(document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect().top - document.querySelector("[data-u-comp=formula-bar]").getBoundingClientRect().top) < 2'));
-  check('percent button shows % glyph', await evaluate('getComputedStyle(document.querySelector("[data-u-command=\\"sheet.command.numfmt.set.percent\\"]"), "::before").content === "\\"%\\""'));
+  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
   // --- Values + formulas via facade (simulates typed input through the command system)

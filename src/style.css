@@ -71,12 +71,8 @@ html, body {
 .fab {
   position: absolute;
   z-index: 300;
-  right: 22px;
-  bottom: 22px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+  width: 36px;
+  height: 36px;
   user-select: none;
   -webkit-app-region: no-drag;
 }
@@ -109,7 +105,12 @@ html, body {
   background: currentColor;
 }
 
+/* Menu hangs off the button: above it by default, below when the button is in the top half,
+   right-aligned by default, left-aligned when the button is in the left half. */
 .fab-menu {
+  position: absolute;
+  right: 0;
+  bottom: 44px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -119,15 +120,11 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  transform-origin: bottom right;
   animation: fab-in 120ms ease-out;
 }
 .fab-menu[hidden] { display: none; }
-.fab.open-up .fab-menu { order: -1; }
-.fab.open-down { flex-direction: column-reverse; }
-.fab.open-down .fab-menu { transform-origin: top right; }
-.fab.align-left { align-items: flex-start; }
-.fab.align-left .fab-menu { transform-origin: bottom left; }
+.fab.open-down .fab-menu { bottom: auto; top: 44px; }
+.fab.align-left .fab-menu { right: auto; left: 0; }
 @keyframes fab-in {
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: scale(1); }
@@ -234,7 +231,8 @@ html, body {
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command][disabled],
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command][aria-disabled="true"] { opacity: 0.45; }
 
-/* Text glyphs instead of icons */
+/* Google's own Material Symbols (the icons Sheets uses), drawn in the current text color.
+   Univer's SVGs are hidden and a masked ::before takes their place. */
 #sheet [data-u-command="sheet.command.numfmt.set.percent"] svg,
 #sheet [data-u-command="sheet.command.numfmt.set.currency"] svg,
 #sheet [data-u-command="sheet.command.numfmt.add.decimal.command"] svg,
@@ -243,37 +241,41 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.set.percent"],
 #sheet [data-u-command="sheet.command.numfmt.set.currency"],
 #sheet [data-u-command="sheet.command.numfmt.add.decimal.command"],
-#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] {
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  width: 26px;
-}
-#sheet [data-u-command="sheet.command.numfmt.set.percent"]::before { content: "%"; font-size: 13px; font-weight: 500; }
-#sheet [data-u-command="sheet.command.numfmt.set.currency"]::before { content: "$"; font-size: 13px; font-weight: 500; }
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] { width: 26px; }
 
-#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"],
-#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] {
-  flex-direction: column;
-  gap: 0;
-  line-height: 1;
+#sheet [data-u-command="sheet.command.numfmt.set.percent"]::before,
+#sheet [data-u-command="sheet.command.numfmt.set.currency"]::before,
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::before,
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::before,
+#sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
-#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::before { content: ".0"; font-size: 10px; font-weight: 600; }
-#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::after { content: "\2190"; font-size: 9px; margin-top: 1px; }
-#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::before { content: ".00"; font-size: 10px; font-weight: 600; }
-#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::after { content: "\2192"; font-size: 9px; margin-top: 1px; }
+#sheet [data-u-command="sheet.command.numfmt.set.percent"]::before { -webkit-mask-image: url(./icons/percent.svg); mask-image: url(./icons/percent.svg); }
+#sheet [data-u-command="sheet.command.numfmt.set.currency"]::before { -webkit-mask-image: url(./icons/attach_money.svg); mask-image: url(./icons/attach_money.svg); }
+#sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::before { -webkit-mask-image: url(./icons/decimal_decrease.svg); mask-image: url(./icons/decimal_decrease.svg); }
+#sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::before { -webkit-mask-image: url(./icons/decimal_increase.svg); mask-image: url(./icons/decimal_increase.svg); }
 
-/* Paint bucket: Material "format_color_fill" drawn in the current text color.
-   Univer's own icon paths are hidden except the last one (the current-color bar). */
+/* Paint bucket: Material "format_color_fill" (bar removed) over Univer's live color bar,
+   which is the last <path> of its own icon. */
 #sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main { position: relative; }
 #sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main svg path:not(:last-of-type) { display: none; }
 #sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main::before {
-  content: "";
   position: absolute;
   left: 50%;
-  top: 2px;
-  width: 15px;
-  height: 13px;
+  top: 0;
   transform: translateX(-50%);
-  background: currentColor;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 18'><path d='M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10 10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z'/></svg>") center / contain no-repeat;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 18'><path d='M16.56 8.94 7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10 10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z'/></svg>") center / contain no-repeat;
+  -webkit-mask-image: url(./icons/format_color_fill.svg);
+  mask-image: url(./icons/format_color_fill.svg);
 }
+/* The dropdown caret next to the bucket: keep it, but quiet it down like Sheets */
+#sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-trigger { opacity: 0.55; }
