@@ -69,32 +69,48 @@ async function main() {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17 });
   await sleep(100);
   check('ctrl release hides drag overlay', await evaluate('document.getElementById("drag-overlay").hidden'));
-  // FAB opens and closes
-  await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
-  await sleep(150);
-  check('fab click opens menu', await evaluate('!document.getElementById("fab-menu").hidden'));
-  check('fab menu fully inside window', await evaluate('(() => { const r = document.getElementById("fab-menu").getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight; })()'));
-  check('fab button still reachable', await evaluate('(() => { const r = document.getElementById("fab-main").getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight; })()'));
-  await evaluate(`(() => { const b = document.getElementById('fab-main'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
-  await sleep(150);
-  check('fab click again closes menu', await evaluate('document.getElementById("fab-menu").hidden'));
-  const visibleToolbar = await evaluate('[...document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]")].map(e => e.dataset.uCommand)');
-  check('toolbar is exactly fill % $ .0 .00', JSON.stringify([...visibleToolbar].sort()) === JSON.stringify([
-    'sheet.command.numfmt.add.decimal.command', 'sheet.command.numfmt.set.currency', 'sheet.command.numfmt.set.percent',
-    'sheet.command.numfmt.subtract.decimal.command', 'sheet.command.set-background-color',
-  ]), JSON.stringify(visibleToolbar));
+  check('name box right edge = row header edge', await evaluate('(() => { const r = document.querySelector("[data-u-comp=defined-name] input").getBoundingClientRect().right; const w = univerAPI.getActiveWorkbook().getActiveSheet().getSkeleton().rowHeaderWidth; return Math.abs(r - w) < 0.5; })()'));
+  check('two circles float: palette and 123', await evaluate('[...document.getElementById("fab").children].map(c => c.id).join() === "fab-text,fab-number" && !document.getElementById("fab-menu")'));
+  check('corner order: pin, theme, Clear, Save, x', await evaluate('[...document.getElementById("corner").children].map(c => c.id).join()') === 'btn-pin,btn-theme,btn-clear,btn-save,btn-hide');
+  check('no hover tooltips on our controls', await evaluate('document.querySelectorAll("body > :not(#sheet) [title], body > [title]").length === 0'));
+  check('formula bar reserves the corner width', await evaluate('parseFloat(getComputedStyle(document.querySelector("[data-u-comp=formula-bar]")).paddingRight) >= document.getElementById("corner").getBoundingClientRect().width'));
+  // Pin button flips always-on-top and its pressed state, then back
+  const pinBefore = (await evaluate('window.scratch.getConfig()')).alwaysOnTop;
+  await evaluate(`document.getElementById('btn-pin').click()`);
+  await sleep(300);
+  check('pin button flips always on top', (await evaluate('window.scratch.getConfig()')).alwaysOnTop === !pinBefore);
+  check('pin button pressed state follows', await evaluate('document.getElementById("btn-pin").getAttribute("aria-pressed")') === String(!pinBefore));
+  await evaluate(`document.getElementById('btn-pin').click()`);
+  await sleep(300);
+  check('pin button flips back', (await evaluate('window.scratch.getConfig()')).alwaysOnTop === pinBefore);
+  check('drag handle is a tab in the bottom-right corner', await evaluate('(() => { const el = document.getElementById("drag-handle"); const r = el.getBoundingClientRect(); return Math.abs(r.bottom - window.innerHeight) < 1 && Math.abs(r.right - window.innerWidth) < 1 && getComputedStyle(el).borderTopLeftRadius === "100%"; })()'));
+  check('drag handle drags the window', await evaluate('getComputedStyle(document.getElementById("drag-handle")).webkitAppRegion') === 'drag');
+  check('drag handle and both circles share the inverse colors', await evaluate('(() => { const key = (id) => { const c = getComputedStyle(document.getElementById(id)); return c.backgroundColor + c.color; }; return key("drag-handle") === key("fab-text") && key("fab-text") === key("fab-number"); })()'));
   check('corner strip at top-right', await evaluate('(() => { const r = document.getElementById("corner").getBoundingClientRect(); return r.top === 0 && Math.abs(r.right - window.innerWidth) < 1 && !!document.getElementById("btn-save") && !!document.getElementById("btn-clear") && !!document.getElementById("btn-hide"); })()'));
   check('format pill hidden by default', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "hidden"'));
   const tapFab = (id) => evaluate(`(() => { const b = document.getElementById('${id}'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
-  await tapFab('fab-format');
+  const pillVisible = () => evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "visible"');
+  // Tools showing in the pill, left to right, and whether they all sit inside it unclipped
+  const pillTools = () => evaluate('[...document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]")].filter(e => e.getBoundingClientRect().width > 0).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map(e => e.dataset.uCommand.replace("sheet.command.", ""))');
+  const pillFits = () => evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const tb = document.querySelector("[data-u-comp=ribbon-toolbar]"); const shown = [...tb.querySelectorAll("[data-u-command]")].filter(e => e.getBoundingClientRect().width > 0); return shown.length > 0 && tb.scrollWidth <= tb.clientWidth && shown.every(e => { const r = e.getBoundingClientRect(); return r.left >= p.left && r.right <= p.right; }); })()');
+  const pillBeside = () => evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const f = document.getElementById("fab").getBoundingClientRect(); const inside = p.left >= 0 && p.top >= 0 && p.right <= window.innerWidth && p.bottom <= window.innerHeight; const beside = Math.abs((p.top + p.height / 2) - (f.top + f.height / 2)) < 12 || Math.abs(p.bottom - f.top) < 20 || Math.abs(p.top - f.bottom) < 20; return inside && beside; })()');
+  await tapFab('fab-text');
   await sleep(300);
-  check('format circle opens pill', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "visible"'));
-  check('format pill inside window, beside circles', await evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const f = document.getElementById("fab").getBoundingClientRect(); const inside = p.left >= 0 && p.top >= 0 && p.right <= window.innerWidth && p.bottom <= window.innerHeight; const beside = Math.abs((p.top + p.height / 2) - (f.top + f.height / 2)) < 12 || Math.abs(p.bottom - f.top) < 20 || Math.abs(p.top - f.bottom) < 20; return inside && beside; })()'));
-  check('format pill shows all five tools', await evaluate('document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]").length === 5'));
-  await tapFab('fab-format');
+  check('palette circle opens the text pill', await pillVisible());
+  const textTools = await pillTools();
+  check('text pill is A- A+ text color, fill', JSON.stringify(textTools) === JSON.stringify(['set-range-font-decrease', 'set-range-font-increase', 'set-range-text-color', 'set-background-color']), JSON.stringify(textTools));
+  check('text pill fits its tools, inside the window beside the circles', await pillFits() && await pillBeside());
+  check('text color shows the live color bar under the Material A', await evaluate(`(() => { const paths = [...document.querySelectorAll('[data-u-comp=ribbon-toolbar] [data-u-command="sheet.command.set-range-text-color"] .univer-toolbar-button-selector-main svg path')]; return paths.length > 1 && getComputedStyle(paths[0]).display !== 'none' && paths.slice(1).every((p) => getComputedStyle(p).display === 'none'); })()`));
+  await tapFab('fab-number');
+  await sleep(300);
+  const numberTools = await pillTools();
+  check('123 circle switches to the number pill: % $ .0 .00', await pillVisible() && JSON.stringify(numberTools) === JSON.stringify(['numfmt.set.percent', 'numfmt.set.currency', 'numfmt.subtract.decimal.command', 'numfmt.add.decimal.command']), JSON.stringify(numberTools));
+  check('number pill fits its tools, inside the window beside the circles', await pillFits() && await pillBeside());
+  check('only the open circle is marked open', await evaluate('[...document.querySelectorAll(".fab-circle.is-open")].map(c => c.id).join()') === 'fab-number');
+  await tapFab('fab-number');
   await sleep(200);
-  check('format circle closes pill', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "hidden"'));
-  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
+  check('123 circle closes its pill', !(await pillVisible()));
+  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command","sheet.command.set-range-font-increase","sheet.command.set-range-font-decrease"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
   // --- Values + formulas via facade (simulates typed input through the command system)
@@ -172,17 +188,22 @@ async function main() {
   check('typed cell has no forced text color', !rawTyped.s1 || !rawTyped.s1.cl, JSON.stringify(rawTyped.s1));
   check('typed percent cell has no forced text color', !rawTyped.s2 || !rawTyped.s2.cl, JSON.stringify(rawTyped.s2));
 
-  // --- Theme toggle button flips dark/light and back
+  // --- Theme toggle button flips dark/light and back; the floating circle is always the inverse of the theme
+  const circleColors = () => evaluate('(() => { const c = getComputedStyle(document.getElementById("fab-text")); return [c.backgroundColor, c.color]; })()');
+  const INVERSE_CIRCLE = { dark: ['rgb(255, 255, 255)', 'rgb(27, 31, 36)'], light: ['rgb(27, 31, 36)', 'rgb(255, 255, 255)'] };
   const darkBefore = (await evaluate('window.scratch.getConfig()')).darkMode;
   await evaluate(`document.getElementById('btn-theme').click()`);
   await sleep(500);
   const darkAfter = (await evaluate('window.scratch.getConfig()')).darkMode;
   check('theme toggle flips mode', darkAfter === !darkBefore, `${darkBefore} -> ${darkAfter}`);
   check('html data-theme follows', await evaluate('document.documentElement.dataset.theme') === (darkAfter ? 'dark' : 'light'));
+  check(`circle is the inverse in ${darkAfter ? 'dark' : 'light'} mode`, JSON.stringify(await circleColors()) === JSON.stringify(INVERSE_CIRCLE[darkAfter ? 'dark' : 'light']), JSON.stringify(await circleColors()));
+  check('theme icon offers the other mode', await evaluate('document.querySelector("#btn-theme .ico").classList.contains("' + (darkAfter ? 'ico-light' : 'ico-dark') + '")'));
   check('univer dark class follows', await evaluate('document.documentElement.classList.contains("univer-dark")') === darkAfter);
   await evaluate(`document.getElementById('btn-theme').click()`);
   await sleep(1500); // Univer re-themes the whole workbench; give it time before mouse-driven steps
   check('theme toggle flips back', (await evaluate('window.scratch.getConfig()')).darkMode === darkBefore);
+  check(`circle is the inverse in ${darkBefore ? 'dark' : 'light'} mode`, JSON.stringify(await circleColors()) === JSON.stringify(INVERSE_CIRCLE[darkBefore ? 'dark' : 'light']), JSON.stringify(await circleColors()));
 
   // --- Bold + highlight via toolbar buttons
   await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A3').activate()`);
@@ -204,6 +225,25 @@ async function main() {
   await sleep(200);
   const bg2 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:A2').getBackgrounds()`);
   check('fill removed', bg2.flat().every((c) => !c || c.toLowerCase() !== '#fde68a'), JSON.stringify(bg2));
+
+  // --- Font size -/+ and text color from the pill (B1 keeps them so the export check below sees them)
+  const b1Style = `univerAPI.getActiveWorkbook().getActiveSheet().getRange('B1').getCellStyleData()`;
+  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('B1').activate()`);
+  const fsStart = (await evaluate(b1Style))?.fs ?? 11;
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-font-increase')`);
+  await sleep(150);
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-font-increase')`);
+  await sleep(150);
+  const fsUp = (await evaluate(b1Style))?.fs;
+  check('font size + steps up', fsUp === fsStart + 2, `${fsStart} -> ${fsUp}`);
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-font-decrease')`);
+  await sleep(150);
+  const fsDown = (await evaluate(b1Style))?.fs;
+  check('font size - steps down', fsDown === fsStart + 1, `${fsUp} -> ${fsDown}`);
+  await evaluate(`void univerAPI.executeCommand('sheet.command.set-range-text-color', { value: '#dc2626' })`);
+  await sleep(200);
+  const b1 = await evaluate(b1Style);
+  check('text color applied', b1?.cl?.rgb?.toLowerCase() === '#dc2626', JSON.stringify(b1));
 
   if (QUIET) {
     console.log('SKIP  right-click menu steps (QUIET set)');
@@ -248,22 +288,14 @@ async function main() {
 
   }
 
-  // --- Copy all (touches the system clipboard; set SKIP_CLIPBOARD=1 while someone is using the PC)
-  if (process.env.SKIP_CLIPBOARD) {
-    console.log('SKIP  copy all -> clipboard TSV (SKIP_CLIPBOARD set)');
-  } else {
-    await evaluate(`document.getElementById('btn-copy').click()`);
-    await sleep(500);
-    const { execSync } = require('node:child_process');
-    const clip = execSync('powershell -NoProfile -Command "Get-Clipboard -Raw"', { encoding: 'utf8' }).replace(/\r/g, '');
-    check('copy all -> clipboard TSV', clip.includes('845\tUnits sold') && clip.includes('1590'), JSON.stringify(clip.slice(0, 120)));
-  }
-
   // --- Autosave happened
   await sleep(800);
   const fs = require('node:fs');
   const path = require('node:path');
-  const candidates = ['scratchsheet', 'Scratch Sheet', 'Electron'].map((n) => path.join(process.env.APPDATA, n, 'sheet.json'));
+  // SCRATCH_DATA points at a dev instance's --user-data-dir so tests never touch the real sheet.
+  const candidates = process.env.SCRATCH_DATA
+    ? [path.join(process.env.SCRATCH_DATA, 'sheet.json')]
+    : ['scratchsheet', 'Scratch Sheet', 'Electron'].map((n) => path.join(process.env.APPDATA, n, 'sheet.json'));
   const sheetFile = candidates.find((f) => fs.existsSync(f));
   check('sheet.json written', !!sheetFile, sheetFile || candidates.join(' | '));
   if (sheetFile) {
@@ -279,21 +311,18 @@ async function main() {
     const xd1 = xws.getCell('D1');
     check('xlsx export carries formula', xa3 && xa3.formula === 'A1+A2' && xa3.result === 1590, JSON.stringify(xa3));
     check('xlsx export carries numFmt', typeof xd1.numFmt === 'string' && xd1.numFmt.includes('$'), JSON.stringify(xd1.numFmt));
+    const xb1 = xws.getCell('B1').font || {};
+    check('xlsx export carries font size and color', xb1.size === fsDown && xb1.color?.argb === 'FFDC2626', JSON.stringify(xb1));
     const out = path.join(process.env.TEMP, 'scratchsheet-test.xlsx');
     await wb.xlsx.writeFile(out);
     check('xlsx file written', fs.statSync(out).size > 2000, out);
   }
 
-  // --- Clear is two-step
-  await evaluate(`document.getElementById('btn-clear').click()`);
-  const armed = await evaluate(`document.getElementById('btn-clear').classList.contains('confirm')`);
-  check('clear arms first', armed === true, String(armed));
-  const stillThere = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getValue()`);
-  check('first click does not clear', stillThere === 845, JSON.stringify(stillThere));
+  // --- One click on Clear wipes the sheet
   await evaluate(`document.getElementById('btn-clear').click()`);
   await sleep(400);
   const cleared = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:D3').getValues().flat().every(v => v === null || v === '')`);
-  check('second click clears', cleared);
+  check('one click clears', cleared);
   // Undo brings it back
   await evaluate(`void univerAPI.undo()`);
   await sleep(400);

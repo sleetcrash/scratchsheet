@@ -6,16 +6,16 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 
 ## Features
 
-- No title bar at all. Hold **Ctrl** and drag anywhere on the sheet to move the window; resize from any edge
+- No title bar at all. Drag the rounded tab in the bottom-right corner, or hold **Ctrl** and drag anywhere on the sheet, to move the window; resize from any edge
 - Full formula engine (Univer): `SUM`, `AVERAGE`, `IF`, `ROUND`, `VLOOKUP`, `CONCATENATE` and hundreds more
 - Typing `$12,133` or `5.7%` keeps the number and applies the format, like Sheets
-- Formula bar like Sheets: `A1`, `fx`, the formula. Top-right corner holds **Save**, **Clear**, and **×** (hide to tray)
+- Formula bar like Sheets: `A1`, `fx`, the formula. Top-right corner holds always on top (pin), dark/light mode, **Clear**, **Save**, and **×** (hide to tray)
 - Right-click a cell for **Number format** (Automatic, Number, Percent, Currency, Date, Time, Plain text) and **Align**
 - Bold, italic, undo, redo are keyboard only: Ctrl+B, Ctrl+I, Ctrl+Z, Ctrl+Y
-- Two floating circles you can drag anywhere: the menu (**Copy all**, theme, always on top, quit) and the format tools (paint bucket, `%`, `$`, `.0←`, `.00→`)
+- Two floating circles you can drag anywhere: the palette opens the text tools (font size `A-` `A+`, text color, paint bucket), `123` opens the number formats (`%`, `$`, `.0←`, `.00→`)
 - Global show/hide hotkey, default `Ctrl+Alt+Space`
 - Launches at login, hidden in the tray. Close and minimize both hide to the tray. Quit is in the tray menu
-- Dark mode by default; switch in the floating menu or the tray menu
+- Dark mode by default; switch with the corner button or the tray menu
 - Autosave with atomic writes, including scroll position and active cell
 
 ## Setup
@@ -39,7 +39,8 @@ G keys only send whatever G HUB assigns them, so map a G key to the combo `Ctrl+
 npm run dev          # vite build + electron .
 npm run build:dir    # unpacked build in release\win-unpacked (no installer)
 npm test             # DevTools Protocol smoke test against an instance started with --remote-debugging-port=9222
-# QUIET=1 never shows the window (skips right-click steps); SKIP_CLIPBOARD=1 skips the Copy-all check
+# QUIET=1 never shows the window (skips right-click steps); CDP_PORT picks another port;
+# SCRATCH_DATA=<dir> checks the sheet.json of an instance started with --user-data-dir=<dir>
 ```
 
 Data lives in `%APPDATA%\Scratch Sheet\`: `config.json` (hotkey, theme, window bounds, always-on-top, launch-at-login) and `sheet.json` (the sheet snapshot).

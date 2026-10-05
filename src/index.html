@@ -10,31 +10,28 @@
   <!-- The sheet is the whole window. No title bar: hold Ctrl and drag anywhere to move. -->
   <main id="sheet"></main>
 
-  <!-- Top-right corner: Save, Clear, close (hide to tray) -->
+  <!-- Top-right corner: always on top, theme, Clear, Save, close (hide to tray) -->
   <div id="corner">
-    <button id="btn-save" class="corner-btn" title="Save as .xlsx">Save</button>
-    <button id="btn-clear" class="corner-btn corner-danger" title="Clear the whole sheet">Clear</button>
-    <button id="btn-hide" class="corner-btn corner-close" title="Hide to tray (hotkey brings it back)" aria-label="Hide"><span class="ico ico-close"></span></button>
+    <button id="btn-pin" class="corner-btn corner-icon" aria-label="Always on top" aria-pressed="false"><span class="ico ico-pin"></span></button>
+    <button id="btn-theme" class="corner-btn corner-icon" aria-label="Dark mode"><span class="ico ico-dark"></span></button>
+    <button id="btn-clear" class="corner-btn corner-danger">Clear</button>
+    <button id="btn-save" class="corner-btn">Save</button>
+    <button id="btn-hide" class="corner-btn corner-icon corner-close" aria-label="Hide"><span class="ico ico-close"></span></button>
   </div>
 
   <!-- Shown while Ctrl is held: a transparent drag region over the cells -->
   <div id="drag-overlay" hidden><span>Drag to move</span></div>
 
-  <!-- Floating circles: drag the pair anywhere; main opens the menu, palette opens the format tools -->
+  <!-- Bottom-right corner tab: drag it to move the window without holding Ctrl -->
+  <div id="drag-handle" aria-hidden="true"><span class="ico ico-drag"></span></div>
+
+  <!-- Floating circles: drag the pair anywhere; palette opens the text tools, 123 the number formats -->
   <div id="fab" class="fab">
-    <div id="fab-menu" class="fab-menu" hidden>
-      <button id="btn-copy" class="fab-item" title="Copy everything on the sheet"><span class="fab-ico">&#10697;</span>Copy all</button>
-      <span class="fab-sep"></span>
-      <button id="btn-theme" class="fab-item" title="Light / dark mode"><span class="fab-ico">&#9790;</span>Theme</button>
-      <button id="btn-pin" class="fab-item" title="Always on top"><span class="fab-ico">&#9650;</span>Always on top</button>
-      <span class="fab-sep"></span>
-      <button id="btn-quit" class="fab-item fab-muted" title="Quit Scratch Sheet"><span class="fab-ico">&#9211;</span>Quit <kbd id="fab-hotkey" title="Show / hide hotkey"></kbd></button>
-    </div>
-    <button id="fab-main" class="fab-circle" title="Menu (drag to move)" aria-label="Menu">
-      <span class="fab-dot"></span><span class="fab-dot"></span><span class="fab-dot"></span>
-    </button>
-    <button id="fab-format" class="fab-circle fab-circle-alt" title="Formatting (drag to move)" aria-label="Formatting">
+    <button id="fab-text" class="fab-circle" aria-label="Text formatting">
       <span class="ico ico-palette"></span>
+    </button>
+    <button id="fab-number" class="fab-circle" aria-label="Number formats">
+      <span class="ico ico-numbers"></span>
     </button>
   </div>
 

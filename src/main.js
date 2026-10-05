@@ -1,5 +1,5 @@
 // Scratch Sheet - renderer
-// Univer grid + its formatting toolbar, plus a thin title bar. Autosaves every change to disk
+// Univer grid, a corner strip, and two floating format circles. Autosaves every change to disk
 // through the preload bridge.
 
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
@@ -25,7 +25,7 @@ const EDITOR_TEXT_COLOR = '#1b1c1f';
 // (undo/redo, font, bold/italic/underline/strike, text + fill color, borders, merge, align,
 // wrap, number format, format painter...).
 const HIDDEN_MENU_ITEMS = [
-  // Only fill, %, $, and the two decimal buttons stay in the toolbar. Bold/italic are
+  // Only font size -/+, text color, fill, %, $, and the two decimal buttons stay in the toolbar. Bold/italic are
   // Ctrl+B / Ctrl+I, undo/redo are Ctrl+Z / Ctrl+Y, number format + alignment live in
   // the right-click menu (see registerContextMenus).
   'univer.command.undo',
@@ -35,13 +35,10 @@ const HIDDEN_MENU_ITEMS = [
   'sheet.menu.paste',
   'sheet.command.set-range-font-family',
   'sheet.command.set-range-fontsize',
-  'sheet.command.set-range-font-increase',
-  'sheet.command.set-range-font-decrease',
   'sheet.command.set-range-bold',
   'sheet.command.set-range-italic',
   'sheet.command.set-range-underline',
   'sheet.command.set-range-stroke',
-  'sheet.command.set-range-text-color',
   'sheet.command.set-border-basic',
   'sheet.command.set-horizontal-text-align',
   'sheet.command.set-vertical-text-align',
@@ -92,7 +89,7 @@ const $ = (id) => document.getElementById(id);
 // Boot
 // ---------------------------------------------------------------------------
 const config = await api.getConfig();
-applyTheme(config);
+applyConfig(config);
 
 const { univerAPI } = createUniver({
   locale: LocaleType.EN_US,
@@ -145,7 +142,7 @@ univerAPI.addEvent(univerAPI.Event.CommandExecuted, (ev) => {
 window.addEventListener('beforeunload', () => persist());
 api.onShown(() => focusGrid());
 api.onConfigChanged((cfg) => {
-  applyTheme(cfg);
+  applyConfig(cfg);
   univerAPI.toggleDarkMode(!!cfg.darkMode);
   setGridlinesColor(cfg.darkMode);
 });
@@ -327,21 +324,18 @@ function focusGrid() {
 }
 
 // ---------------------------------------------------------------------------
-// Floating action button (draggable, expands into the menu)
+// Floating circles (a draggable pair; each opens its own set of format tools)
 // ---------------------------------------------------------------------------
 const fab = $('fab');
-const fabMain = $('fab-main');
-const fabMenu = $('fab-menu');
 const FAB_POS_KEY = 'scratch.fab';
-
 const FAB_SIZE = 36;          // one circle
 const FAB_GAP = 8;
 const FAB_CLUSTER_W = FAB_SIZE * 2 + FAB_GAP;  // two circles side by side
 const FAB_MARGIN = 8;
-const fabFormat = $('fab-format');
 const sheetEl = $('sheet');
+// Which pill each circle opens: Univer's one toolbar, filtered in CSS by #sheet[data-fmt-open].
+const PILLS = { text: $('fab-text'), number: $('fab-number') };
 
-// The container is exactly the round button; the menu is absolutely positioned off it.
 function placeFab(x, y) {
   const maxX = window.innerWidth - FAB_CLUSTER_W - FAB_MARGIN;
   const maxY = window.innerHeight - FAB_SIZE - FAB_MARGIN;
@@ -349,13 +343,12 @@ function placeFab(x, y) {
   y = Math.min(Math.max(FAB_MARGIN, y), Math.max(FAB_MARGIN, maxY));
   fab.style.left = `${x}px`;
   fab.style.top = `${y}px`;
-  // Open toward the side with more room.
-  fab.classList.toggle('open-down', y + FAB_SIZE / 2 < window.innerHeight / 2);
+  // The pill opens toward the side with more room.
   fab.classList.toggle('align-left', x + FAB_CLUSTER_W / 2 < window.innerWidth / 2);
-  if (sheetEl.hasAttribute('data-fmt-open')) positionFormatPill();
+  if (openPill()) positionFormatPill();
 }
 
-// Stored as fractions of the window so the button keeps its corner when the note is resized.
+// Stored as fractions of the window so the circles keep their corner when the note is resized.
 function loadFabPosition() {
   try {
     const saved = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null');
@@ -373,31 +366,14 @@ function saveFabPosition() {
   } catch { /* ignore */ }
 }
 
-function openFabMenu(open) {
-  fabMenu.hidden = !open;
-  fab.classList.toggle('open', open);
-  fabMenu.style.transform = '';
-  if (open) openFormatPill(false);
-  if (!open) return;
-  // Nudge the expanded menu back inside the window if it still pokes out.
-  const r = fabMenu.getBoundingClientRect();
-  let dx = 0;
-  let dy = 0;
-  if (r.right > window.innerWidth - 4) dx = window.innerWidth - 4 - r.right;
-  if (r.left < 4) dx = 4 - r.left;
-  if (r.bottom > window.innerHeight - 4) dy = window.innerHeight - 4 - r.bottom;
-  if (r.top < 4) dy = 4 - r.top;
-  if (dx || dy) fabMenu.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
-}
-
-// Univer's toolbar (fill, %, $, .0, .00) floats as a pill beside the format circle.
+// Univer's toolbar floats as a pill beside the circles.
 function headerbar() { return sheetEl.querySelector('[data-u-comp="headerbar"]'); }
 
 function positionFormatPill() {
   const bar = headerbar();
   if (!bar) return;
-  const pillW = bar.offsetWidth || 236;
-  const pillH = bar.offsetHeight || 36;
+  const pillW = bar.offsetWidth;
+  const pillH = bar.offsetHeight;
   const gap = 10;
   const rightSide = fab.classList.contains('align-left');
   let x = rightSide ? fab.offsetLeft + FAB_CLUSTER_W + gap : fab.offsetLeft - gap - pillW;
@@ -412,61 +388,58 @@ function positionFormatPill() {
   bar.style.top = `${Math.round(y)}px`;
 }
 
-function openFormatPill(open) {
-  if (open) {
-    openFabMenu(false);
-    sheetEl.setAttribute('data-fmt-open', '');
-    fab.classList.add('fmt-open');
-    positionFormatPill();
-  } else {
-    sheetEl.removeAttribute('data-fmt-open');
-    fab.classList.remove('fmt-open');
-  }
+function openPill() { return sheetEl.dataset.fmtOpen || null; }
+
+// kind: 'text', 'number', or null to close.
+function showPill(kind) {
+  if (kind) sheetEl.dataset.fmtOpen = kind;
+  else delete sheetEl.dataset.fmtOpen;
+  for (const [k, circle] of Object.entries(PILLS)) circle.classList.toggle('is-open', k === kind);
+  if (kind) positionFormatPill();
 }
 
-// Drag either circle to move the pair; a click (no real movement) toggles that circle's menu.
-function wireFabDrag(button, onClick) {
-  let start = null;
-  button.addEventListener('pointerdown', (e) => {
+// Drag either circle to move the pair; a click (no real movement) toggles that circle's pill.
+function wireFabCircle(kind) {
+  const circle = PILLS[kind];
+  let drag = null;
+  circle.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    start = { x: e.clientX, y: e.clientY, left: fab.offsetLeft, top: fab.offsetTop, moved: false };
-    button.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, left: fab.offsetLeft, top: fab.offsetTop, moved: false };
+    circle.setPointerCapture(e.pointerId);
   });
-  button.addEventListener('pointermove', (e) => {
-    if (!start) return;
-    const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    if (!start.moved && Math.hypot(dx, dy) < 4) return;
-    if (!start.moved) { start.moved = true; openFabMenu(false); openFormatPill(false); fab.classList.add('dragging'); }
-    placeFab(start.left + dx, start.top + dy);
+  circle.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) { drag.moved = true; showPill(null); }
+    placeFab(drag.left + dx, drag.top + dy);
   });
-  const finish = (e) => {
-    if (!start) return;
-    const wasDrag = start.moved;
-    start = null;
-    fab.classList.remove('dragging');
-    try { button.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  const end = (e) => {
+    if (!drag) return;
+    const wasDrag = drag.moved;
+    drag = null;
+    try { circle.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     if (wasDrag) saveFabPosition();
-    else onClick();
+    else showPill(openPill() === kind ? null : kind);
   };
-  button.addEventListener('pointerup', finish);
-  button.addEventListener('pointercancel', finish);
+  circle.addEventListener('pointerup', end);
+  circle.addEventListener('pointercancel', end);
 }
-wireFabDrag(fabMain, () => openFabMenu(fabMenu.hidden));
-wireFabDrag(fabFormat, () => openFormatPill(!sheetEl.hasAttribute('data-fmt-open')));
+wireFabCircle('text');
+wireFabCircle('number');
 
 document.addEventListener('pointerdown', (e) => {
-  if (!fabMenu.hidden && !fab.contains(e.target)) openFabMenu(false);
   const bar = headerbar();
-  if (sheetEl.hasAttribute('data-fmt-open') && !fab.contains(e.target) && !(bar && bar.contains(e.target))
+  if (openPill() && !fab.contains(e.target) && !(bar && bar.contains(e.target))
       && !e.target.closest('[data-radix-popper-content-wrapper], .univer-popup, [role="menu"]')) {
-    openFormatPill(false);
+    showPill(null);
   }
 }, true);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { openFabMenu(false); openFormatPill(false); }
+  if (e.key === 'Escape') showPill(null);
 });
-window.addEventListener('resize', () => { openFabMenu(false); openFormatPill(false); loadFabPosition(); });
+window.addEventListener('resize', () => { showPill(null); loadFabPosition(); });
 loadFabPosition();
 
 // ---------------------------------------------------------------------------
@@ -486,23 +459,8 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => setDragOverlay(false));
 
 // ---------------------------------------------------------------------------
-// Menu actions
+// Corner actions
 // ---------------------------------------------------------------------------
-$('btn-copy').addEventListener('click', async () => {
-  openFabMenu(false);
-  try {
-    const ws = univerAPI.getActiveWorkbook().getActiveSheet();
-    const rows = ws.getDataRange().getDisplayValues();
-    const text = rows.map((row) => row.map((v) => (v ?? '').toString().replace(/\t/g, ' ')).join('\t')).join('\n');
-    await api.writeClipboard(text);
-    toast(text.trim() ? 'Copied whole sheet' : 'Sheet is empty');
-  } catch (err) {
-    console.error(err);
-    toast('Copy failed', true);
-  }
-  focusGrid();
-});
-
 $('btn-save').addEventListener('click', async () => {
   try {
     const snapshot = univerAPI.getActiveWorkbook().save();
@@ -516,17 +474,8 @@ $('btn-save').addEventListener('click', async () => {
   focusGrid();
 });
 
-// Clear is two-step: first click arms it for 3 s, second click wipes. Undo (Ctrl+Z) still works after.
-let clearArmTimer = null;
+// One click wipes the sheet; Ctrl+Z brings it back.
 $('btn-clear').addEventListener('click', () => {
-  const btn = $('btn-clear');
-  if (!btn.classList.contains('confirm')) {
-    btn.classList.add('confirm');
-    btn.textContent = 'Sure?';
-    clearArmTimer = setTimeout(disarmClear, 3000);
-    return;
-  }
-  disarmClear();
   try {
     const ws = univerAPI.getActiveWorkbook().getActiveSheet();
     ws.clear();
@@ -539,27 +488,23 @@ $('btn-clear').addEventListener('click', () => {
   }
   focusGrid();
 });
-function disarmClear() {
-  clearTimeout(clearArmTimer);
-  const btn = $('btn-clear');
-  btn.classList.remove('confirm');
-  btn.textContent = 'Clear';
-}
 
 $('btn-pin').addEventListener('click', () => api.togglePin());
 $('btn-theme').addEventListener('click', () => api.toggleTheme());
 $('btn-hide').addEventListener('click', () => api.hide());
-$('btn-quit').addEventListener('click', () => api.quit());
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function applyTheme(cfg) {
+function applyConfig(cfg) {
   document.documentElement.dataset.theme = cfg.darkMode ? 'dark' : 'light';
-  $('btn-pin').classList.toggle('is-on', !!cfg.alwaysOnTop);
-  $('btn-theme').querySelector('.fab-ico').innerHTML = cfg.darkMode ? '&#9788;' : '&#9790;';
-  $('btn-theme').lastChild.textContent = cfg.darkMode ? 'Light mode' : 'Dark mode';
-  if (cfg.hotkey) $('fab-hotkey').textContent = cfg.hotkey.replace(/Control/g, 'Ctrl').replace(/\+/g, '+');
+  const pin = $('btn-pin');
+  pin.classList.toggle('is-on', !!cfg.alwaysOnTop);
+  pin.setAttribute('aria-pressed', String(!!cfg.alwaysOnTop));
+  // The theme button shows the mode it switches to.
+  const theme = $('btn-theme');
+  theme.querySelector('.ico').className = `ico ${cfg.darkMode ? 'ico-light' : 'ico-dark'}`;
+  theme.setAttribute('aria-label', cfg.darkMode ? 'Light mode' : 'Dark mode');
 }
 
 let toastTimer = null;
