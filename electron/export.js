@@ -1,8 +1,14 @@
 // XLSX export from a Univer workbook snapshot.
 // Pure Node (no Electron) so it can be unit-tested directly.
-// Carries over: values, formulas, bold, italic, font size, text color, fill color, number format, column widths.
+// Carries over: values, formulas, bold, italic, font size, text color, fill color, borders, number format,
+// merged cells, column widths. Conditional formatting rules are not exported.
 
 const ExcelJS = require('exceljs');
+
+// Univer's BorderStyleTypes (NONE = 0 ... THICK = 13) in order, as ExcelJS border style names.
+const BORDER_STYLES = [null, 'thin', 'hair', 'dotted', 'dashed', 'dashDot', 'dashDotDot', 'double', 'medium',
+  'mediumDashed', 'mediumDashDot', 'mediumDashDotDot', 'slantDashDot', 'thick'];
+const BORDER_SIDES = { t: 'top', b: 'bottom', l: 'left', r: 'right' };
 
 async function exportXlsx(snapshot, filePath) {
   const wb = buildWorkbook(snapshot);
@@ -49,10 +55,25 @@ function buildWorkbook(snapshot) {
           if (bg) {
             xc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(bg) } };
           }
+          if (style.bd) {
+            const border = {};
+            for (const [side, name] of Object.entries(BORDER_SIDES)) {
+              const b = style.bd[side];
+              const excelStyle = b && BORDER_STYLES[b.s];
+              if (excelStyle) border[name] = { style: excelStyle, color: { argb: toArgb((b.cl && b.cl.rgb) || '#000000') } };
+            }
+            if (Object.keys(border).length) xc.border = border;
+          }
           const pattern = style.n && style.n.pattern;
           if (pattern && pattern !== 'General') xc.numFmt = pattern;
         }
       }
+    }
+
+    // WithoutStyle: plain mergeCells copies the top-left cell's style over the others, dropping the
+    // right and bottom edges of a border drawn around the merged range.
+    for (const m of sheet.mergeData || []) {
+      ws.mergeCellsWithoutStyle(m.startRow + 1, m.startColumn + 1, m.endRow + 1, m.endColumn + 1);
     }
 
     // Column widths (Univer px -> Excel character units, roughly px / 7)
