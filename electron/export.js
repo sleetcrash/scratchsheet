@@ -1,6 +1,6 @@
 // XLSX export from a Univer workbook snapshot.
 // Pure Node (no Electron) so it can be unit-tested directly.
-// Carries over: values, formulas, bold, italic, fill color, number format, column widths.
+// Carries over: values, formulas, bold, italic, font size, text color, fill color, number format, column widths.
 
 const ExcelJS = require('exceljs');
 
@@ -42,6 +42,9 @@ function buildWorkbook(snapshot) {
         if (style) {
           if (style.bl === 1) xc.font = { ...(xc.font || {}), bold: true };
           if (style.it === 1) xc.font = { ...(xc.font || {}), italic: true };
+          if (style.fs) xc.font = { ...(xc.font || {}), size: style.fs };
+          const cl = style.cl && style.cl.rgb;
+          if (cl) xc.font = { ...(xc.font || {}), color: { argb: toArgb(cl) } };
           const bg = style.bg && style.bg.rgb;
           if (bg) {
             xc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(bg) } };
