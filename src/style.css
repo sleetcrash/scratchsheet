@@ -272,9 +272,11 @@ html, body {
   height: 28px !important;
   padding-right: var(--corner-w);
 }
-/* name box: same width as the row-number column so their edges line up; no caret */
+/* name box: same width as the row-number column so their edges line up; no caret.
+   Univer gives both the wrapper and the box inside it their own fixed widths. */
 #sheet { --row-header-w: 48px; }
-#sheet [data-u-comp="formula-bar"] > div:first-child { width: var(--row-header-w) !important; }
+#sheet [data-u-comp="formula-bar"] > div:first-child,
+#sheet [data-u-comp="defined-name"] { width: var(--row-header-w) !important; }
 #sheet [data-u-comp="defined-name"] svg { display: none; }
 #sheet [data-u-comp="defined-name"] { padding-right: 0 !important; }
 /* actions: hide the x and check, keep the fx label */
