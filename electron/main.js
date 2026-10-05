@@ -1,7 +1,7 @@
 // Scratch Sheet - Electron main process
 // Floating, always-on-top spreadsheet post-it. Lives in the tray, toggled by a global hotkey.
 
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, dialog, nativeImage, clipboard, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, dialog, nativeImage, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -254,11 +254,6 @@ ipcMain.handle('sheet:save', async (_e, snapshot) => {
   return true;
 });
 
-ipcMain.handle('clipboard:write', (_e, text) => {
-  clipboard.writeText(String(text ?? ''));
-  return true;
-});
-
 ipcMain.handle('sheet:export', async (_e, snapshot) => {
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Save Scratch Sheet as spreadsheet',
@@ -276,7 +271,6 @@ ipcMain.handle('sheet:export', async (_e, snapshot) => {
 });
 
 ipcMain.on('window:hide', () => win && win.hide());
-ipcMain.on('app:quit', () => { quitting = true; app.quit(); });
 ipcMain.on('window:toggle-theme', () => {
   config.darkMode = !config.darkMode;
   saveConfig();
