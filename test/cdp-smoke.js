@@ -70,7 +70,7 @@ async function main() {
   await sleep(100);
   check('ctrl release hides drag overlay', await evaluate('document.getElementById("drag-overlay").hidden'));
   check('name box right edge = row header edge', await evaluate('(() => { const r = document.querySelector("[data-u-comp=defined-name] input").getBoundingClientRect().right; const w = univerAPI.getActiveWorkbook().getActiveSheet().getSkeleton().rowHeaderWidth; return Math.abs(r - w) < 0.5; })()'));
-  check('two circles float: palette and 123', await evaluate('[...document.getElementById("fab").children].map(c => c.id).join() === "fab-text,fab-number" && !document.getElementById("fab-menu")'));
+  check('three circles float: palette, 123, cells', await evaluate('[...document.getElementById("fab").children].map(c => c.id).join() === "fab-text,fab-number,fab-cells" && !document.getElementById("fab-menu")'));
   check('corner order: pin, theme, Clear, Save, x', await evaluate('[...document.getElementById("corner").children].map(c => c.id).join()') === 'btn-pin,btn-theme,btn-clear,btn-save,btn-hide');
   check('no hover tooltips on our controls', await evaluate('document.querySelectorAll("body > :not(#sheet) [title], body > [title]").length === 0'));
   check('formula bar reserves the corner width', await evaluate('parseFloat(getComputedStyle(document.querySelector("[data-u-comp=formula-bar]")).paddingRight) >= document.getElementById("corner").getBoundingClientRect().width'));
@@ -85,14 +85,14 @@ async function main() {
   check('pin button flips back', (await evaluate('window.scratch.getConfig()')).alwaysOnTop === pinBefore);
   check('drag handle is a tab in the bottom-right corner', await evaluate('(() => { const el = document.getElementById("drag-handle"); const r = el.getBoundingClientRect(); return Math.abs(r.bottom - window.innerHeight) < 1 && Math.abs(r.right - window.innerWidth) < 1 && getComputedStyle(el).borderTopLeftRadius === "100%"; })()'));
   check('drag handle drags the window', await evaluate('getComputedStyle(document.getElementById("drag-handle")).webkitAppRegion') === 'drag');
-  check('drag handle and both circles share the inverse colors', await evaluate('(() => { const key = (id) => { const c = getComputedStyle(document.getElementById(id)); return c.backgroundColor + c.color; }; return key("drag-handle") === key("fab-text") && key("fab-text") === key("fab-number"); })()'));
+  check('drag handle and all circles share the inverse colors', await evaluate('(() => { const key = (id) => { const c = getComputedStyle(document.getElementById(id)); return c.backgroundColor + c.color; }; return ["fab-text", "fab-number", "fab-cells"].every(id => key(id) === key("drag-handle")); })()'));
   check('corner strip at top-right', await evaluate('(() => { const r = document.getElementById("corner").getBoundingClientRect(); return r.top === 0 && Math.abs(r.right - window.innerWidth) < 1 && !!document.getElementById("btn-save") && !!document.getElementById("btn-clear") && !!document.getElementById("btn-hide"); })()'));
   check('format pill hidden by default', await evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "hidden"'));
   const tapFab = (id) => evaluate(`(() => { const b = document.getElementById('${id}'); const r = b.getBoundingClientRect(); const o = { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, button: 0, pointerId: 1 }; b.dispatchEvent(new PointerEvent('pointerdown', o)); b.dispatchEvent(new PointerEvent('pointerup', o)); })()`);
   const pillVisible = () => evaluate('getComputedStyle(document.querySelector("[data-u-comp=headerbar]")).visibility === "visible"');
   // Tools showing in the pill, left to right, and whether they all sit inside it unclipped
   const pillTools = () => evaluate('[...document.querySelectorAll("[data-u-comp=ribbon-toolbar] [data-u-command]")].filter(e => e.getBoundingClientRect().width > 0).sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map(e => e.dataset.uCommand.replace("sheet.command.", ""))');
-  const pillFits = () => evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const tb = document.querySelector("[data-u-comp=ribbon-toolbar]"); const shown = [...tb.querySelectorAll("[data-u-command]")].filter(e => e.getBoundingClientRect().width > 0); return shown.length > 0 && tb.scrollWidth <= tb.clientWidth && shown.every(e => { const r = e.getBoundingClientRect(); return r.left >= p.left && r.right <= p.right; }); })()');
+  const pillFits = () => evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const tb = document.querySelector("[data-u-comp=ribbon-toolbar]"); const shown = [...tb.querySelectorAll("[data-u-command]")].filter(e => e.getBoundingClientRect().width > 0); return shown.length > 0 && tb.scrollWidth <= tb.clientWidth && !tb.querySelector(":scope > .univer-pl-2") && shown.every(e => { const r = e.getBoundingClientRect(); return r.left >= p.left && r.right <= p.right; }); })()');
   const pillBeside = () => evaluate('(() => { const p = document.querySelector("[data-u-comp=headerbar]").getBoundingClientRect(); const f = document.getElementById("fab").getBoundingClientRect(); const inside = p.left >= 0 && p.top >= 0 && p.right <= window.innerWidth && p.bottom <= window.innerHeight; const beside = Math.abs((p.top + p.height / 2) - (f.top + f.height / 2)) < 12 || Math.abs(p.bottom - f.top) < 20 || Math.abs(p.top - f.bottom) < 20; return inside && beside; })()');
   await tapFab('fab-text');
   await sleep(300);
@@ -104,14 +104,22 @@ async function main() {
   await tapFab('fab-number');
   await sleep(300);
   const numberTools = await pillTools();
-  check('123 circle switches to the number pill: % $ .0 .00', await pillVisible() && JSON.stringify(numberTools) === JSON.stringify(['numfmt.set.percent', 'numfmt.set.currency', 'numfmt.subtract.decimal.command', 'numfmt.add.decimal.command']), JSON.stringify(numberTools));
+  check('123 circle switches to the number pill: % $ date .0 .00', await pillVisible() && JSON.stringify(numberTools) === JSON.stringify(['numfmt.set.percent', 'numfmt.set.currency', 'scratch.numfmt.date', 'numfmt.subtract.decimal.command', 'numfmt.add.decimal.command']), JSON.stringify(numberTools));
   check('number pill fits its tools, inside the window beside the circles', await pillFits() && await pillBeside());
   check('only the open circle is marked open', await evaluate('[...document.querySelectorAll(".fab-circle.is-open")].map(c => c.id).join()') === 'fab-number');
-  await tapFab('fab-number');
+  await tapFab('fab-cells');
+  await sleep(300);
+  const cellsTools = await pillTools();
+  check('cells circle switches to conditional formatting, borders, merge', await pillVisible() && JSON.stringify(cellsTools) === JSON.stringify(['sheet.operation.open.conditional.formatting.panel', 'set-border-basic', 'add-worksheet-merge']), JSON.stringify(cellsTools));
+  check('cells pill fits its tools, inside the window beside the circles', await pillFits() && await pillBeside());
+  await tapFab('fab-cells');
   await sleep(200);
-  check('123 circle closes its pill', !(await pillVisible()));
-  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command","sheet.command.set-range-font-increase","sheet.command.set-range-font-decrease"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
+  check('cells circle closes its pill', !(await pillVisible()));
+  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command","sheet.command.set-range-font-increase","sheet.command.set-range-font-decrease","scratch.numfmt.date"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
+
+  // Conditional formatting rules left on the sheet would tint the cells the checks below read
+  await evaluate('void univerAPI.getActiveWorkbook().getActiveSheet().clearConditionalFormatRules()');
 
   // --- Values + formulas via facade (simulates typed input through the command system)
   await evaluate(`(() => {
@@ -245,6 +253,34 @@ async function main() {
   const b1 = await evaluate(b1Style);
   check('text color applied', b1?.cl?.rgb?.toLowerCase() === '#dc2626', JSON.stringify(b1));
 
+  // --- Date button in the number pill (a click on the real toolbar button)
+  await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('D10').setValue(45000); ws.getRange('D10').activate(); })()`);
+  await sleep(200);
+  await evaluate(`document.querySelector('[data-u-comp=ribbon-toolbar] [data-u-command="scratch.numfmt.date"]').click()`);
+  await sleep(300);
+  const d10 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('D10').getDisplayValue()`);
+  check('Date button formats a serial as m/d/yyyy', d10 === '3/15/2023', JSON.stringify(d10));
+
+  // --- Borders and merge (cells pill tools), kept for the export check below
+  await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('C5:D6').setBorder(univerAPI.Enum.BorderType.ALL, univerAPI.Enum.BorderStyleTypes.THIN, '#000000'); ws.getRange('E8:F9').breakApart(); ws.getRange('E8').setValue('merged'); ws.getRange('E8:F9').merge(); ws.getRange('E8:F9').setBorder(univerAPI.Enum.BorderType.OUTSIDE, univerAPI.Enum.BorderStyleTypes.THIN, '#000000'); })()`);
+  await sleep(300);
+  const c5 = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('C5').getCellStyleData()`);
+  check('borders applied', ['t', 'b', 'l', 'r'].every((k) => c5?.bd?.[k]?.s === 1), JSON.stringify(c5?.bd));
+  check('cells merged', await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('E8:F9').isMerged()`));
+
+  // --- Conditional formatting: a rule on A1:A3 that saves with the sheet
+  await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.clearConditionalFormatRules(); ws.addConditionalFormattingRule(ws.newConditionalFormattingRule().whenNumberGreaterThan(800).setBackground('#bbf7d0').setRanges([ws.getRange('A1:A3').getRange()]).build()); })()`);
+  await sleep(300);
+  check('conditional formatting rule added', await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getConditionalFormattingRules().length`) === 1);
+  // Its rule panel opens in Univer's right sidebar: below the corner strip, formula bar unsqueezed, pill closed
+  await evaluate(`void univerAPI.executeCommand('sheet.operation.open.conditional.formatting.panel', { value: 2 })`);
+  await sleep(600);
+  const sidebar = await evaluate(`(() => { const close = document.querySelector('[data-u-comp=sidebar] .univerjs-icon-close-icon').getBoundingClientRect(); const hit = document.elementFromPoint(close.left + close.width / 2, close.top + close.height / 2); return { open: document.getElementById('sheet').hasAttribute('data-sidebar-open'), closeReachable: !!hit.closest('[data-u-comp=sidebar]'), formulaPad: getComputedStyle(document.querySelector('[data-u-comp=formula-bar]')).paddingRight, pill: document.getElementById('sheet').dataset.fmtOpen || null }; })()`);
+  check('rule panel opens clear of the corner strip, formula bar keeps its width', sidebar.open && sidebar.closeReachable && sidebar.formulaPad === '0px' && !sidebar.pill, JSON.stringify(sidebar));
+  await evaluate(`document.querySelector('[data-u-comp=sidebar] .univerjs-icon-close-icon').closest('button').click()`);
+  await sleep(600);
+  check('rule panel closes, corner reservation returns', await evaluate(`!document.getElementById('sheet').hasAttribute('data-sidebar-open') && getComputedStyle(document.querySelector('[data-u-comp=formula-bar]')).paddingRight !== '0px'`));
+
   if (QUIET) {
     console.log('SKIP  right-click menu steps (QUIET set)');
   } else {
@@ -313,6 +349,13 @@ async function main() {
     check('xlsx export carries numFmt', typeof xd1.numFmt === 'string' && xd1.numFmt.includes('$'), JSON.stringify(xd1.numFmt));
     const xb1 = xws.getCell('B1').font || {};
     check('xlsx export carries font size and color', xb1.size === fsDown && xb1.color?.argb === 'FFDC2626', JSON.stringify(xb1));
+    const xc5 = xws.getCell('C5').border || {};
+    check('xlsx export carries borders', ['top', 'bottom', 'left', 'right'].every((k) => xc5[k]?.style === 'thin'), JSON.stringify(xc5));
+    check('xlsx export carries merged cells', xws.getCell('F9').isMerged && xws.getCell('F9').master.address === 'E8');
+    const xf9 = xws.getCell('F9').border || {};
+    check('merged cell keeps its outer border on export', xf9.right?.style === 'thin' && xf9.bottom?.style === 'thin', JSON.stringify(xf9));
+    const cf = (snap.resources || []).find((r) => r.name === 'SHEET_CONDITIONAL_FORMATTING_PLUGIN');
+    check('conditional formatting saved with the sheet', !!cf && JSON.parse(cf.data).sheet1?.length === 1, cf && cf.data.slice(0, 80));
     const out = path.join(process.env.TEMP, 'scratchsheet-test.xlsx');
     await wb.xlsx.writeFile(out);
     check('xlsx file written', fs.statSync(out).size > 2000, out);
@@ -329,6 +372,7 @@ async function main() {
   const undone = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1').getValue()`);
   check('undo restores after clear', undone === 845, JSON.stringify(undone));
 
+  await evaluate('void univerAPI.getActiveWorkbook().getActiveSheet().clearConditionalFormatRules()');
   await restorePin();
   await sleep(500);
   if (!QUIET) check('pin state restored', (await evaluate('window.scratch.getConfig()')).alwaysOnTop === !!startCfg.alwaysOnTop);

@@ -1,11 +1,14 @@
 // Scratch Sheet - renderer
-// Univer grid, a corner strip, and two floating format circles. Autosaves every change to disk
+// Univer grid, a corner strip, and three floating format circles. Autosaves every change to disk
 // through the preload bridge.
 
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import '@univerjs/preset-sheets-core/lib/index.css';
+import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting';
+import sheetsCfEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US';
+import '@univerjs/preset-sheets-conditional-formatting/lib/index.css';
 
 const api = window.scratch;
 
@@ -25,9 +28,10 @@ const EDITOR_TEXT_COLOR = '#1b1c1f';
 // (undo/redo, font, bold/italic/underline/strike, text + fill color, borders, merge, align,
 // wrap, number format, format painter...).
 const HIDDEN_MENU_ITEMS = [
-  // Only font size -/+, text color, fill, %, $, and the two decimal buttons stay in the toolbar. Bold/italic are
-  // Ctrl+B / Ctrl+I, undo/redo are Ctrl+Z / Ctrl+Y, number format + alignment live in
-  // the right-click menu (see registerContextMenus).
+  // What stays is split across the floating circles (see the data-fmt-open rules in style.css): font size -/+,
+  // text color, fill | %, $, decimals, date | conditional formatting, borders, merge.
+  // Bold/italic are Ctrl+B / Ctrl+I, undo/redo are Ctrl+Z / Ctrl+Y, number format + alignment
+  // live in the right-click menu (see registerContextMenus).
   'univer.command.undo',
   'univer.command.redo',
   'ui.operation.activate-format-painter',
@@ -39,13 +43,11 @@ const HIDDEN_MENU_ITEMS = [
   'sheet.command.set-range-italic',
   'sheet.command.set-range-underline',
   'sheet.command.set-range-stroke',
-  'sheet.command.set-border-basic',
   'sheet.command.set-horizontal-text-align',
   'sheet.command.set-vertical-text-align',
   'sheet.command.set-text-wrap',
   'sheet.command.set-shrink-to-fit',
   'sheet.command.set-text-rotation',
-  'sheet.command.add-worksheet-merge',
   'sheet.operation.open.numfmt.panel',
   'ui.operation.open-feature-search',
   'formula-ui.operation.insert-function.common',
@@ -66,7 +68,12 @@ const HIDDEN_MENU_ITEMS = [
   'sheet.command.set-zoom-ratio-from-toolbar',
   'base-ui.operation.toggle-fullscreen',
   'base-ui.operation.toggle-shortcut-panel',
+  // Conditional formatting quick-insert buttons; its dropdown covers data bars and icon sets
+  'sheet.command.add-data-bar-conditional-rule',
+  'sheet.command.add-icon-set-conditional-rule',
 ];
+
+const DATE_FORMAT = 'm/d/yyyy';
 
 // Right-click menu additions (replaces the toolbar's number-format dropdown and align button).
 const NUMBER_FORMATS = [
@@ -76,14 +83,16 @@ const NUMBER_FORMATS = [
   ['Currency', '$#,##0.00'],
   ['Currency (rounded)', '$#,##0'],
   null,
-  ['Date', 'm/d/yyyy'],
+  ['Date', DATE_FORMAT],
   ['Time', 'h:mm AM/PM'],
   ['Date time', 'm/d/yyyy h:mm'],
   null,
   ['Plain text', '@'],
 ];
 
+
 const $ = (id) => document.getElementById(id);
+const sheetEl = $('sheet');
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -93,7 +102,7 @@ applyConfig(config);
 
 const { univerAPI } = createUniver({
   locale: LocaleType.EN_US,
-  locales: { [LocaleType.EN_US]: mergeLocales(sheetsCoreEnUS) },
+  locales: { [LocaleType.EN_US]: mergeLocales(sheetsCoreEnUS, sheetsCfEnUS) },
   darkMode: !!config.darkMode,
   presets: [
     UniverSheetsCorePreset({
@@ -106,6 +115,7 @@ const { univerAPI } = createUniver({
       contextMenu: true,
       menu: Object.fromEntries(HIDDEN_MENU_ITEMS.map((id) => [id, { hidden: true }])),
     }),
+    UniverSheetsConditionalFormattingPreset(),
   ],
 });
 
@@ -113,6 +123,7 @@ const { univerAPI } = createUniver({
 window.univerAPI = univerAPI;
 
 registerContextMenus();
+registerToolbarMenus();
 
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
@@ -131,6 +142,7 @@ univerAPI.addEvent(univerAPI.Event.LifeCycleChanged, ({ stage }) => {
   // The snapshot's rowHeader.width is not honored reliably; set it through the UI facade.
   try { univerAPI.getActiveWorkbook().getActiveSheet().setRowHeaderWidth(ROW_HEADER_W); } catch (err) { console.warn('row header width', err); }
   restorePosition(saved && saved.__scratch);
+  watchSidebar();
 });
 
 // Autosave on every mutation (cell edits, formatting, row/col changes, undo/redo).
@@ -177,6 +189,15 @@ function registerContextMenus() {
     }));
   }
   alignMenu.appendTo('contextMenu.format');
+}
+
+// Toolbar addition: a Date button in the number group.
+function registerToolbarMenus() {
+  univerAPI.createMenu({
+    id: 'scratch.numfmt.date',
+    title: 'Date',
+    action: () => { const r = activeRange(); if (r) r.setNumberFormat(DATE_FORMAT); focusGrid(); },
+  }).appendTo('ribbon.start.number');
 }
 
 // ---------------------------------------------------------------------------
@@ -324,17 +345,16 @@ function focusGrid() {
 }
 
 // ---------------------------------------------------------------------------
-// Floating circles (a draggable pair; each opens its own set of format tools)
+// Floating circles (dragged as a group; each opens its own set of format tools)
 // ---------------------------------------------------------------------------
 const fab = $('fab');
 const FAB_POS_KEY = 'scratch.fab';
+// Which pill each circle opens: Univer's one toolbar, filtered in CSS by #sheet[data-fmt-open].
+const PILLS = { text: $('fab-text'), number: $('fab-number'), cells: $('fab-cells') };
 const FAB_SIZE = 36;          // one circle
 const FAB_GAP = 8;
-const FAB_CLUSTER_W = FAB_SIZE * 2 + FAB_GAP;  // two circles side by side
+const FAB_CLUSTER_W = Object.keys(PILLS).length * (FAB_SIZE + FAB_GAP) - FAB_GAP;  // circles side by side
 const FAB_MARGIN = 8;
-const sheetEl = $('sheet');
-// Which pill each circle opens: Univer's one toolbar, filtered in CSS by #sheet[data-fmt-open].
-const PILLS = { text: $('fab-text'), number: $('fab-number') };
 
 function placeFab(x, y) {
   const maxX = window.innerWidth - FAB_CLUSTER_W - FAB_MARGIN;
@@ -366,6 +386,18 @@ function saveFabPosition() {
   } catch { /* ignore */ }
 }
 
+// Univer's right sidebar (conditional formatting rules) opens beside the grid. While it is open the
+// corner strip sits over it instead of the formula bar, and the pill gets out of its way.
+function watchSidebar() {
+  const sidebar = sheetEl.querySelector('[data-u-comp="right-sidebar"]');
+  if (!sidebar) return;
+  new ResizeObserver(() => {
+    const open = sidebar.offsetWidth > 0;
+    sheetEl.toggleAttribute('data-sidebar-open', open);
+    if (open) showPill(null);
+  }).observe(sidebar);
+}
+
 // Univer's toolbar floats as a pill beside the circles.
 function headerbar() { return sheetEl.querySelector('[data-u-comp="headerbar"]'); }
 
@@ -390,7 +422,7 @@ function positionFormatPill() {
 
 function openPill() { return sheetEl.dataset.fmtOpen || null; }
 
-// kind: 'text', 'number', or null to close.
+// kind: a PILLS key, or null to close.
 function showPill(kind) {
   if (kind) sheetEl.dataset.fmtOpen = kind;
   else delete sheetEl.dataset.fmtOpen;
@@ -398,7 +430,7 @@ function showPill(kind) {
   if (kind) positionFormatPill();
 }
 
-// Drag either circle to move the pair; a click (no real movement) toggles that circle's pill.
+// Drag any circle to move the group; a click (no real movement) toggles that circle's pill.
 function wireFabCircle(kind) {
   const circle = PILLS[kind];
   let drag = null;
@@ -426,8 +458,7 @@ function wireFabCircle(kind) {
   circle.addEventListener('pointerup', end);
   circle.addEventListener('pointercancel', end);
 }
-wireFabCircle('text');
-wireFabCircle('number');
+for (const kind of Object.keys(PILLS)) wireFabCircle(kind);
 
 document.addEventListener('pointerdown', (e) => {
   const bar = headerbar();

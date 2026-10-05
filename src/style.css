@@ -82,6 +82,7 @@ html, body {
   mask: center / contain no-repeat;
 }
 .ico-palette { -webkit-mask-image: url(./icons/palette.svg); mask-image: url(./icons/palette.svg); }
+.ico-cells { -webkit-mask-image: url(./icons/border_all.svg); mask-image: url(./icons/border_all.svg); }
 .ico-numbers { -webkit-mask-image: url(./icons/numbers_123.svg); mask-image: url(./icons/numbers_123.svg); width: 28px; height: 28px; }
 .ico-close { -webkit-mask-image: url(./icons/close.svg); mask-image: url(./icons/close.svg); width: 16px; height: 16px; }
 .ico-pin { -webkit-mask-image: url(./icons/push_pin.svg); mask-image: url(./icons/push_pin.svg); width: 16px; height: 16px; }
@@ -95,7 +96,7 @@ html, body {
   top: 0;
   right: 0;
   height: 28px;
-  z-index: 250;
+  z-index: 340;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -210,8 +211,11 @@ html, body {
 
 /* Univer's toolbar is detached and floated as a pill next to the format circle.
    It hides items that do not fit its container, so it needs a real width. JS sets left/top. */
-#sheet { --fmt-pill-w: 177px; --corner-w: 184px; }
-#sheet[data-fmt-open="number"] { --fmt-pill-w: 164px; }
+/* Pill width per circle (text and cells use the default). Univer collapses tools into an overflow
+   menu when its toolbar row (pill width - 28px) is under 32 + 8 per group + 8 per tool: with 4 groups
+   and 12 tools that is 152px, so pills are 180px + 4px slack. Each added tool raises the floor 8px. */
+#sheet { --fmt-pill-w: 184px; --corner-w: 184px; }
+#sheet[data-fmt-open="number"] { --fmt-pill-w: 204px; }
 #sheet [data-u-comp="headerbar"] {
   position: absolute;
   top: 0;
@@ -236,10 +240,18 @@ html, body {
 /* Univer decides what to collapse into its overflow menu by measuring a hidden copy of the toolbar
    plus fixed padding per item and group, which overestimates. The tools are hand-picked and always
    fit the pill, so the copy measures zero and nothing ever collapses. */
-#sheet [aria-hidden="true"].univer-invisible [data-u-command] { display: none !important; }
-/* Each circle shows one group of the toolbar: text tools (palette) or number formats (123) */
-#sheet[data-fmt-open="text"] [data-u-comp="ribbon-toolbar"] > div:has([data-u-command^="sheet.command.numfmt"]),
-#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div:not(:has([data-u-command^="sheet.command.numfmt"])) { display: none; }
+#sheet [aria-hidden="true"].univer-invisible * { display: none !important; }
+/* Each circle shows its own tools from the one toolbar: palette = text, 123 = number formats,
+   grid = conditional formatting, borders, merge. Tools and whole groups outside the open circle's
+   list are hidden. */
+#sheet[data-fmt-open="text"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command="sheet.command.set-range-font-decrease"], [data-u-command="sheet.command.set-range-font-increase"], [data-u-command="sheet.command.set-range-text-color"], [data-u-command="sheet.command.set-background-color"]))),
+#sheet[data-fmt-open="text"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command="sheet.command.set-range-font-decrease"], [data-u-command="sheet.command.set-range-font-increase"], [data-u-command="sheet.command.set-range-text-color"], [data-u-command="sheet.command.set-background-color"]))),
+#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
+#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
+#sheet[data-fmt-open="cells"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command="sheet.operation.open.conditional.formatting.panel"], [data-u-command="sheet.command.set-border-basic"], [data-u-command="sheet.command.add-worksheet-merge"]))),
+#sheet[data-fmt-open="cells"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command="sheet.operation.open.conditional.formatting.panel"], [data-u-command="sheet.command.set-border-basic"], [data-u-command="sheet.command.add-worksheet-merge"]))) { display: none; }
+/* Cells pill reads conditional formatting, borders, merge */
+#sheet [data-u-comp="ribbon-toolbar"] > div:has([data-u-command="sheet.operation.open.conditional.formatting.panel"]) { order: -1; }
 #sheet [data-u-comp="ribbon-toolbar"] > div { border-width: 0 !important; }
 #sheet [data-u-comp="ribbon-toolbar"] { justify-content: center; }
 
@@ -248,6 +260,10 @@ html, body {
   height: 28px !important;
   padding-right: var(--corner-w);
 }
+/* Univer's right sidebar (conditional formatting rules) starts below the corner strip and covers the
+   floating circles; while it is open the formula bar no longer reserves room for the corner strip */
+#sheet [data-u-comp="right-sidebar"] { position: relative; z-index: 310; padding-top: 28px; background: var(--bg); }
+#sheet[data-sidebar-open] [data-u-comp="formula-bar"] { padding-right: 0; }
 /* name box: same width as the row-number column so their edges line up; no caret.
    Univer gives both the wrapper and the box inside it their own fixed widths. */
 #sheet { --row-header-w: 48px; }
@@ -266,9 +282,10 @@ html, body {
 /* Font group: A- A+ then text color and fill, like Sheets puts - before + */
 #sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.set-range-font-decrease"]) { order: -1; }
 
-/* Order inside the number-format group: % $ .0<- .00-> */
-#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.subtract.decimal.command"]) { order: 1; }
-#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.add.decimal.command"]) { order: 2; }
+/* Order inside the number-format group: % $ date .0<- .00-> */
+#sheet [data-u-comp="ribbon-toolbar"] > div > :has([data-u-command="scratch.numfmt.date"]) { order: 1; }
+#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.subtract.decimal.command"]) { order: 2; }
+#sheet [data-u-comp="ribbon-toolbar"] span.univer-inline-flex:has([data-u-command="sheet.command.numfmt.add.decimal.command"]) { order: 3; }
 
 /* Toolbar glyphs always follow the theme text color, even when Univer marks them disabled */
 #sheet [data-u-comp="ribbon-toolbar"] [data-u-command],
@@ -284,13 +301,16 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] svg,
 #sheet [data-u-command="sheet.command.set-range-font-decrease"] svg,
 #sheet [data-u-command="sheet.command.set-range-font-increase"] svg { display: none; }
+/* the Date button is a plain titled button; its text gives way to the icon */
+#sheet [data-u-command="scratch.numfmt.date"] { font-size: 0; }
 
 #sheet [data-u-command="sheet.command.numfmt.set.percent"],
 #sheet [data-u-command="sheet.command.numfmt.set.currency"],
 #sheet [data-u-command="sheet.command.numfmt.add.decimal.command"],
 #sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"],
 #sheet [data-u-command="sheet.command.set-range-font-decrease"],
-#sheet [data-u-command="sheet.command.set-range-font-increase"] { width: 26px; }
+#sheet [data-u-command="sheet.command.set-range-font-increase"],
+#sheet [data-u-command="scratch.numfmt.date"] { width: 26px; }
 
 #sheet [data-u-command="sheet.command.numfmt.set.percent"]::before,
 #sheet [data-u-command="sheet.command.numfmt.set.currency"]::before,
@@ -298,6 +318,7 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"]::before,
 #sheet [data-u-command="sheet.command.set-range-font-decrease"]::before,
 #sheet [data-u-command="sheet.command.set-range-font-increase"]::before,
+#sheet [data-u-command="scratch.numfmt.date"]::before,
 #sheet [data-u-command="sheet.command.set-range-text-color"] .univer-toolbar-button-selector-main::before,
 #sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main::before {
   content: "";
@@ -318,6 +339,7 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.add.decimal.command"]::before { -webkit-mask-image: url(./icons/decimal_increase.svg); mask-image: url(./icons/decimal_increase.svg); }
 #sheet [data-u-command="sheet.command.set-range-font-decrease"]::before { -webkit-mask-image: url(./icons/text_decrease.svg); mask-image: url(./icons/text_decrease.svg); }
 #sheet [data-u-command="sheet.command.set-range-font-increase"]::before { -webkit-mask-image: url(./icons/text_increase.svg); mask-image: url(./icons/text_increase.svg); }
+#sheet [data-u-command="scratch.numfmt.date"]::before { -webkit-mask-image: url(./icons/calendar_today.svg); mask-image: url(./icons/calendar_today.svg); }
 
 /* Text color and paint bucket: Material "format_color_text" / "format_color_fill" (bars removed)
    over Univer's live color bar, which is the first <path> of its text icon and the last of its fill icon. */

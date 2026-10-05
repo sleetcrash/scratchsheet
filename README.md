@@ -12,7 +12,8 @@ It sits in the system tray, pops up on a global hotkey, and behaves like a tiny 
 - Formula bar like Sheets: `A1`, `fx`, the formula. Top-right corner holds always on top (pin), dark/light mode, **Clear**, **Save**, and **×** (hide to tray)
 - Right-click a cell for **Number format** (Automatic, Number, Percent, Currency, Date, Time, Plain text) and **Align**
 - Bold, italic, undo, redo are keyboard only: Ctrl+B, Ctrl+I, Ctrl+Z, Ctrl+Y
-- Two floating circles you can drag anywhere: the palette opens the text tools (font size `A-` `A+`, text color, paint bucket), `123` opens the number formats (`%`, `$`, `.0←`, `.00→`)
+- Three floating circles you can drag anywhere as a group: the palette opens the text tools (font size `A-` `A+`, text color, paint bucket), `123` opens the number formats (`%`, `$`, date, `.0←`, `.00→`), and the grid opens **conditional formatting**, **borders** and **merge cells**
+- **Save** writes an .xlsx with values, formulas, formatting, borders and merged cells. Conditional formatting rules stay in the app
 - Global show/hide hotkey, default `Ctrl+Alt+Space`
 - Launches at login, hidden in the tray. Close and minimize both hide to the tray. Quit is in the tray menu
 - Dark mode by default; switch with the corner button or the tray menu
