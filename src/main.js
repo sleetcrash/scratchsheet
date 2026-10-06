@@ -3,7 +3,7 @@
 // through the preload bridge.
 
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
-import { IEditorService, matchRefDrawToken, UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import { IEditorService, matchRefDrawToken, requestNewFrame, SelectionControl, UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import '@univerjs/preset-sheets-core/lib/index.css';
 import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting';
@@ -75,6 +75,10 @@ const HIDDEN_MENU_ITEMS = [
 
 const DATE_FORMAT = 'm/d/yyyy';
 
+// Univer steps the copy marquee 0.6px per animation frame, so it races on high refresh screens
+// (about 100px/s at 164Hz). It runs off the clock instead, at a crawl.
+const MARQUEE_PX_PER_SEC = 12;
+
 // Right-click menu additions (replaces the toolbar's number-format dropdown and align button).
 const NUMBER_FORMATS = [
   ['Automatic', 'General'],
@@ -125,6 +129,7 @@ window.univerAPI = univerAPI;
 registerContextMenus();
 registerToolbarMenus();
 pointLikeSheets();
+slowCopyMarquee();
 
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
@@ -223,6 +228,19 @@ function pointLikeSheets() {
     // and write the move to the formula's references only, never to the real selection
     else if (id === 'sheet.operation.set-selections') params.fromCurrentSelection = false;
   });
+}
+
+function slowCopyMarquee() {
+  SelectionControl.prototype._startAntLineAnimation = function () {
+    const scale = this._getScale();
+    const start = performance.now();
+    const step = () => {
+      // 160 is Univer's own wrap point, a whole number of dash periods, so the wrap is seamless
+      this.dashedRect.setProps({ strokeDashOffset: -((performance.now() - start) / 1000 * MARQUEE_PX_PER_SEC % 160) / scale });
+      this._antRequestNewFrame = requestNewFrame(step);
+    };
+    step();
+  };
 }
 
 // ---------------------------------------------------------------------------

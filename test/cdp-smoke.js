@@ -253,6 +253,37 @@ async function main() {
   // Rows 20+ scrolled the grid; the right-click steps below click at fixed row-1 pixels
   await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('A20:D23').clear(); ws.scrollToCell(0, 0); })()`);
 
+  // --- The copy marquee crawls slowly at the same pace on any refresh rate. The page's clipboard
+  // calls are stubbed for the copy, so the system clipboard is never written.
+  const marquee = await evaluate(`(async () => {
+    const wb = univerAPI.getActiveWorkbook();
+    const ws = wb.getActiveSheet();
+    ws.getRange('A1:B2').activate();
+    const real = { write: navigator.clipboard.write, writeText: navigator.clipboard.writeText, exec: document.execCommand };
+    navigator.clipboard.write = async () => {};
+    navigator.clipboard.writeText = async () => {};
+    document.execCommand = () => true;
+    try { await univerAPI.executeCommand('univer.command.copy'); } finally {
+      navigator.clipboard.write = real.write; navigator.clipboard.writeText = real.writeText; document.execCommand = real.exec;
+    }
+    const dashed = [];
+    const walk = (o) => { if (o.strokeDashArray && o.strokeDashOffset !== undefined && o.visible !== false) dashed.push(o); (o.getObjects?.() || []).forEach(walk); };
+    ws._getSheetRenderComponent(wb.getId(), '__SpreadsheetRender__').getScene().getAllObjectsByOrder().forEach(walk);
+    if (dashed.length !== 1) return { count: dashed.length };
+    const ant = dashed[0];
+    let travelled = 0;
+    let last = ant.strokeDashOffset;
+    const t0 = performance.now();
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      travelled += ((last - ant.strokeDashOffset) % 160 + 160) % 160;
+      last = ant.strokeDashOffset;
+    }
+    return { count: 1, pxPerSec: Math.round(travelled / ((performance.now() - t0) / 1000) * 10) / 10 };
+  })()`);
+  check('copy marquee crawls slowly (4 to 20 px/s)', marquee.count === 1 && marquee.pxPerSec >= 4 && marquee.pxPerSec <= 20, JSON.stringify(marquee));
+  await pressKey('Escape');
+
   // --- Theme toggle button flips dark/light and back; the floating circle is always the inverse of the theme
   const circleColors = () => evaluate('(() => { const c = getComputedStyle(document.getElementById("fab-text")); return [c.backgroundColor, c.color]; })()');
   const INVERSE_CIRCLE = { dark: ['rgb(255, 255, 255)', 'rgb(27, 31, 36)'], light: ['rgb(27, 31, 36)', 'rgb(255, 255, 255)'] };
