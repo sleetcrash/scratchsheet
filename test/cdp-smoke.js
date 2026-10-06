@@ -196,6 +196,63 @@ async function main() {
   check('typed cell has no forced text color', !rawTyped.s1 || !rawTyped.s1.cl, JSON.stringify(rawTyped.s1));
   check('typed percent cell has no forced text color', !rawTyped.s2 || !rawTyped.s2.cl, JSON.stringify(rawTyped.s2));
 
+  // --- Pointing at cells with the arrow keys while typing a formula, as in Google Sheets: the cell
+  // cursor stays on the cell being edited and every new reference starts from that cell
+  const pressKey = async (key, modifiers = 0) => {
+    const vk = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Escape: 27 }[key];
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key, code: key, windowsVirtualKeyCode: vk, modifiers });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: vk, modifiers });
+    await sleep(150);
+  };
+  const SHIFT = 8;
+  const editorText = () => evaluate(`univerAPI.getDocument('__INTERNAL_EDITOR__DOCS_NORMAL').getBody().dataStream.replace(/\\r\\n$/, '')`);
+  const checkCell = async (name, want) => {
+    const cell = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getSelection().getActiveRange().getA1Notation()`);
+    check(name, cell === want, cell);
+  };
+  await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('A20:B22').setValues([[1, 10], [2, 20], [3, 30]]); ws.getRange('D21').activate(); })()`);
+  await sleep(200);
+  await evaluate(`(${GRID}).focus()`);
+  await typeText('=SUM(');
+  await pressKey('ArrowLeft');
+  let pointed = await editorText();
+  check('arrow after ( points at the cell beside the edited one', pointed === '=SUM(C21', pointed);
+  await pressKey('ArrowLeft');
+  await pressKey('ArrowUp');
+  await pressKey('ArrowDown', SHIFT);
+  pointed = await editorText();
+  check('arrows move the reference, shift+arrow extends it', pointed === '=SUM(B20:B21', pointed);
+  await checkCell('cell cursor stays on the edited cell while pointing', 'D21');
+  await typeText(')+');
+  await pressKey('ArrowLeft');
+  pointed = await editorText();
+  check('a new reference starts from the edited cell', pointed === '=SUM(B20:B21)+C21', pointed);
+  await pressKey('ArrowDown');
+  await pressKey('ArrowLeft');
+  pointed = await editorText();
+  check('the new reference keeps moving', pointed === '=SUM(B20:B21)+B22', pointed);
+  await pressEnter();
+  await sleep(500);
+  const d21 = await evaluate(`(() => { const r = univerAPI.getActiveWorkbook().getActiveSheet().getRange('D21'); return { f: r.getFormula(), v: r.getValue() }; })()`);
+  check('pointed formula lands in the edited cell', d21.f === '=SUM(B20:B21)+B22' && d21.v === 60, JSON.stringify(d21));
+  await checkCell('Enter moves down from the edited cell', 'D22');
+  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('D23').activate()`);
+  await sleep(200);
+  await evaluate(`(${GRID}).focus()`);
+  await typeText('=');
+  for (let i = 0; i < 5; i++) await pressKey('ArrowLeft');
+  pointed = await editorText();
+  check('pointing stops at column A instead of wrapping', pointed === '=A23', pointed);
+  await pressKey('Escape');
+  await sleep(300);
+  await checkCell('Escape leaves the cursor on the edited cell', 'D23');
+  await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('A22').activate()`);
+  await evaluate(`(${GRID}).focus()`);
+  await pressKey('ArrowLeft');
+  await checkCell('Left at column A stays put instead of wrapping', 'A22');
+  // Rows 20+ scrolled the grid; the right-click steps below click at fixed row-1 pixels
+  await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('A20:D23').clear(); ws.scrollToCell(0, 0); })()`);
+
   // --- Theme toggle button flips dark/light and back; the floating circle is always the inverse of the theme
   const circleColors = () => evaluate('(() => { const c = getComputedStyle(document.getElementById("fab-text")); return [c.backgroundColor, c.color]; })()');
   const INVERSE_CIRCLE = { dark: ['rgb(255, 255, 255)', 'rgb(27, 31, 36)'], light: ['rgb(27, 31, 36)', 'rgb(255, 255, 255)'] };

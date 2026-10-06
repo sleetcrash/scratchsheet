@@ -3,7 +3,7 @@
 // through the preload bridge.
 
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
-import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import { IEditorService, matchRefDrawToken, UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
 import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import '@univerjs/preset-sheets-core/lib/index.css';
 import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting';
@@ -100,7 +100,7 @@ const sheetEl = $('sheet');
 const config = await api.getConfig();
 applyConfig(config);
 
-const { univerAPI } = createUniver({
+const { univer, univerAPI } = createUniver({
   locale: LocaleType.EN_US,
   locales: { [LocaleType.EN_US]: mergeLocales(sheetsCoreEnUS, sheetsCfEnUS) },
   darkMode: !!config.darkMode,
@@ -124,6 +124,7 @@ window.univerAPI = univerAPI;
 
 registerContextMenus();
 registerToolbarMenus();
+pointLikeSheets();
 
 const saved = await api.loadSheet();
 const workbookData = saved && saved.sheets ? saved : freshWorkbook();
@@ -198,6 +199,30 @@ function registerToolbarMenus() {
     title: 'Date',
     action: () => { const r = activeRange(); if (r) r.setNumberFormat(DATE_FORMAT); focusGrid(); },
   }).appendTo('ribbon.start.number');
+}
+
+// ---------------------------------------------------------------------------
+// Univer fixes (plus patches/, which stops arrow keys wrapping around the sheet's edges)
+// ---------------------------------------------------------------------------
+// Arrow keys point at cells while typing a formula, as in Google Sheets. Univer 1.0.3 moved the real
+// cell cursor on the first arrow (so Enter and Esc landed on the wrong cell) and grew a reference typed
+// after an operator from the previous reference instead of from the cell being edited.
+function pointLikeSheets() {
+  const editorService = univer.__getInjector().get(IEditorService);
+  // The editor cursor sits where a new reference goes: right after =, (, an operator or a comma.
+  const addingReference = () => {
+    const editor = editorService.getFocusEditor();
+    const text = editor?.getDocumentDataModel()?.getBody()?.dataStream;
+    const cursor = editor?.getSelectionRanges()?.[0];
+    return !!text && !!cursor?.collapsed && matchRefDrawToken(text[cursor.startOffset - 1] ?? '');
+  };
+  univerAPI.addEvent(univerAPI.Event.BeforeCommandExecute, ({ id, params }) => {
+    if (params?.extra !== 'formula-editor') return;
+    // fromCurrentSelection: start from the real selection (the edited cell) rather than the last reference
+    if (id === 'sheet.command.move-selection') params.fromCurrentSelection ||= addingReference();
+    // and write the move to the formula's references only, never to the real selection
+    else if (id === 'sheet.operation.set-selections') params.fromCurrentSelection = false;
+  });
 }
 
 // ---------------------------------------------------------------------------
