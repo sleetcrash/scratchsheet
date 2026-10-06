@@ -1,0 +1,13 @@
+diff --git a/node_modules/@univerjs/sheets-ui/lib/es/index.js b/node_modules/@univerjs/sheets-ui/lib/es/index.js
+index 6357518..abb5a58 100644
+--- a/node_modules/@univerjs/sheets-ui/lib/es/index.js
++++ b/node_modules/@univerjs/sheets-ui/lib/es/index.js
+@@ -7044,7 +7044,7 @@ const MoveSelectionCommand = {
+ 			}
+ 		}
+ 		const startRange = getStartRange(range, primary, direction);
+-		const next = jumpOver === 1 ? findNextGapRange(startRange, direction, worksheet) : findNextRange(startRange, direction, worksheet);
++		const next = jumpOver === 1 ? findNextGapRange(startRange, direction, worksheet) : findNextRange(startRange, direction, worksheet, void 0, false, 1, false);
+ 		const destRange = getCellAtRowCol(next.startRow, next.startColumn, worksheet);
+ 		if (Rectangle.equals(destRange, startRange)) return false;
+ 		const unitId = workbook.getUnitId();

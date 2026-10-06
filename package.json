@@ -9,7 +9,8 @@
     "start": "electron .",
     "icon": "node build/make-icon.js",
     "test": "node test/cdp-smoke.js",
-    "build:dir": "vite build && electron-builder --win dir"
+    "build:dir": "vite build && electron-builder --win dir",
+    "postinstall": "patch-package"
   },
   "keywords": [],
   "author": "PatientBird",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
+    "patch-package": "^8.0.1",
     "vite": "^8.3.1"
   },
   "dependencies": {
