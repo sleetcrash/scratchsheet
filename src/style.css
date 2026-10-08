@@ -211,10 +211,11 @@ html, body {
 /* Univer's toolbar is detached and floated as a pill next to the format circle.
    It hides items that do not fit its container, so it needs a real width. JS sets left/top. */
 /* Pill width per circle (text and cells use the default). Univer collapses tools into an overflow
-   menu when its toolbar row (pill width - 28px) is under 32 + 8 per group + 8 per tool: with 4 groups
-   and 12 tools that is 152px, so pills are 180px + 4px slack. Each added tool raises the floor 8px. */
-#sheet { --fmt-pill-w: 184px; --corner-w: 184px; }
-#sheet[data-fmt-open="number"] { --fmt-pill-w: 204px; }
+   menu when its toolbar row (pill width - 28px) is under 32 + 8 per group after the first + 8 per
+   tool: with 5 groups and 13 tools that is 168px, so pills are 196px + 4px slack. Each added tool
+   raises the floor 8px, and a tool in a new group 16px. */
+#sheet { --fmt-pill-w: 200px; --corner-w: 184px; }
+#sheet[data-fmt-open="number"] { --fmt-pill-w: 246px; }
 #sheet [data-u-comp="headerbar"] {
   position: absolute;
   top: 0;
@@ -240,13 +241,13 @@ html, body {
    plus fixed padding per item and group, which overestimates. The tools are hand-picked and always
    fit the pill, so the copy measures zero and nothing ever collapses. */
 #sheet [aria-hidden="true"].univer-invisible * { display: none !important; }
-/* Each circle shows its own tools from the one toolbar: palette = text, 123 = number formats,
-   grid = conditional formatting, borders, merge. Tools and whole groups outside the open circle's
-   list are hidden. */
+/* Each circle shows its own tools from the one toolbar: palette = text, 123 = format painter and
+   number formats, grid = conditional formatting, borders, merge. Tools and whole groups outside the
+   open circle's list are hidden. */
 #sheet[data-fmt-open="text"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command="sheet.command.set-range-font-decrease"], [data-u-command="sheet.command.set-range-font-increase"], [data-u-command="sheet.command.set-range-text-color"], [data-u-command="sheet.command.set-background-color"]))),
 #sheet[data-fmt-open="text"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command="sheet.command.set-range-font-decrease"], [data-u-command="sheet.command.set-range-font-increase"], [data-u-command="sheet.command.set-range-text-color"], [data-u-command="sheet.command.set-background-color"]))),
-#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
-#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
+#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command="ui.operation.activate-format-painter"], [data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
+#sheet[data-fmt-open="number"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command="ui.operation.activate-format-painter"], [data-u-command^="sheet.command.numfmt"], [data-u-command="scratch.numfmt.date"]))),
 #sheet[data-fmt-open="cells"] [data-u-comp="ribbon-toolbar"] > div:not(:has(:is([data-u-command="sheet.operation.open.conditional.formatting.panel"], [data-u-command="sheet.command.set-border-basic"], [data-u-command="sheet.command.add-worksheet-merge"]))),
 #sheet[data-fmt-open="cells"] [data-u-comp="ribbon-toolbar"] > div > :not(:has(:is([data-u-command="sheet.operation.open.conditional.formatting.panel"], [data-u-command="sheet.command.set-border-basic"], [data-u-command="sheet.command.add-worksheet-merge"]))) { display: none; }
 /* Cells pill reads conditional formatting, borders, merge */
@@ -299,7 +300,8 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.add.decimal.command"] svg,
 #sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"] svg,
 #sheet [data-u-command="sheet.command.set-range-font-decrease"] svg,
-#sheet [data-u-command="sheet.command.set-range-font-increase"] svg { display: none; }
+#sheet [data-u-command="sheet.command.set-range-font-increase"] svg,
+#sheet [data-u-command="ui.operation.activate-format-painter"] svg { display: none; }
 /* the Date button is a plain titled button; its text gives way to the icon */
 #sheet [data-u-command="scratch.numfmt.date"] { font-size: 0; }
 
@@ -309,7 +311,8 @@ html, body {
 #sheet [data-u-command="sheet.command.numfmt.subtract.decimal.command"],
 #sheet [data-u-command="sheet.command.set-range-font-decrease"],
 #sheet [data-u-command="sheet.command.set-range-font-increase"],
-#sheet [data-u-command="scratch.numfmt.date"] { width: 26px; }
+#sheet [data-u-command="scratch.numfmt.date"],
+#sheet [data-u-command="ui.operation.activate-format-painter"] { width: 26px; }
 
 #sheet [data-u-command="sheet.command.numfmt.set.percent"]::before,
 #sheet [data-u-command="sheet.command.numfmt.set.currency"]::before,
@@ -318,6 +321,7 @@ html, body {
 #sheet [data-u-command="sheet.command.set-range-font-decrease"]::before,
 #sheet [data-u-command="sheet.command.set-range-font-increase"]::before,
 #sheet [data-u-command="scratch.numfmt.date"]::before,
+#sheet [data-u-command="ui.operation.activate-format-painter"]::before,
 #sheet [data-u-command="sheet.command.set-range-text-color"] .univer-toolbar-button-selector-main::before,
 #sheet [data-u-command="sheet.command.set-background-color"] .univer-toolbar-button-selector-main::before {
   content: "";
@@ -339,6 +343,7 @@ html, body {
 #sheet [data-u-command="sheet.command.set-range-font-decrease"]::before { -webkit-mask-image: url(./icons/text_decrease.svg); mask-image: url(./icons/text_decrease.svg); }
 #sheet [data-u-command="sheet.command.set-range-font-increase"]::before { -webkit-mask-image: url(./icons/text_increase.svg); mask-image: url(./icons/text_increase.svg); }
 #sheet [data-u-command="scratch.numfmt.date"]::before { -webkit-mask-image: url(./icons/calendar_today.svg); mask-image: url(./icons/calendar_today.svg); }
+#sheet [data-u-command="ui.operation.activate-format-painter"]::before { -webkit-mask-image: url(./icons/format_paint.svg); mask-image: url(./icons/format_paint.svg); }
 
 /* Text color and paint bucket: Material "format_color_text" / "format_color_fill" (bars removed)
    over Univer's live color bar, which is the first <path> of its text icon and the last of its fill icon. */

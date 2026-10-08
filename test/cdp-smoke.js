@@ -104,7 +104,7 @@ async function main() {
   await tapFab('fab-number');
   await sleep(300);
   const numberTools = await pillTools();
-  check('123 circle switches to the number pill: % $ date .0 .00', await pillVisible() && JSON.stringify(numberTools) === JSON.stringify(['numfmt.set.percent', 'numfmt.set.currency', 'scratch.numfmt.date', 'numfmt.subtract.decimal.command', 'numfmt.add.decimal.command']), JSON.stringify(numberTools));
+  check('123 circle switches to the number pill: painter % $ date .0 .00', await pillVisible() && JSON.stringify(numberTools) === JSON.stringify(['ui.operation.activate-format-painter', 'numfmt.set.percent', 'numfmt.set.currency', 'scratch.numfmt.date', 'numfmt.subtract.decimal.command', 'numfmt.add.decimal.command']), JSON.stringify(numberTools));
   check('number pill fits its tools, inside the window beside the circles', await pillFits() && await pillBeside());
   check('only the open circle is marked open', await evaluate('[...document.querySelectorAll(".fab-circle.is-open")].map(c => c.id).join()') === 'fab-number');
   await tapFab('fab-cells');
@@ -115,7 +115,7 @@ async function main() {
   await tapFab('fab-cells');
   await sleep(200);
   check('cells circle closes its pill', !(await pillVisible()));
-  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command","sheet.command.set-range-font-increase","sheet.command.set-range-font-decrease","scratch.numfmt.date"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
+  check('toolbar uses Material icon masks', await evaluate('["sheet.command.numfmt.set.percent","sheet.command.numfmt.set.currency","sheet.command.numfmt.add.decimal.command","sheet.command.numfmt.subtract.decimal.command","sheet.command.set-range-font-increase","sheet.command.set-range-font-decrease","scratch.numfmt.date","ui.operation.activate-format-painter"].every(id => /svg/.test(getComputedStyle(document.querySelector(`[data-u-command="${id}"]`), "::before").webkitMaskImage || ""))'));
   check('formula bar present', await evaluate('!!document.querySelector("[class*=formula-bar], [class*=formulaBar], [data-u-comp=formula-bar]")'));
 
   // Conditional formatting rules left on the sheet would tint the cells the checks below read
@@ -410,6 +410,22 @@ async function main() {
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await sleep(200);
 
+    // --- Format painter in the 123 pill: copy C12's format onto C14 with one click on C14
+    await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.scrollToCell(0, 0); ws.getRange('C12').setValue(0.25).setNumberFormat('0.00%').setFontWeight('bold').setBackground('#fde68a'); ws.getRange('C14').setValue(0.5); ws.getRange('C12').activate(); })()`);
+    await sleep(300);
+    await tapFab('fab-number');
+    await sleep(300);
+    await evaluate(`document.querySelector('[data-u-comp=ribbon-toolbar] [data-u-command="ui.operation.activate-format-painter"]').click()`);
+    await sleep(200);
+    check('format painter button arms the brush', await evaluate(`${GRID}.dataset.formatPainter === 'available'`));
+    const c14XY = await evaluate(`(() => { const b = ${GRID}.getBoundingClientRect(); const c = univerAPI.getActiveWorkbook().getActiveSheet().getSkeleton().getCellWithCoordByIndex(13, 2); return [Math.round(b.left + (c.startX + c.endX) / 2), Math.round(b.top + (c.startY + c.endY) / 2)]; })()`);
+    await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: c14XY[0], y: c14XY[1] });
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: c14XY[0], y: c14XY[1], button: 'left', clickCount: 1 });
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: c14XY[0], y: c14XY[1], button: 'left', clickCount: 1 });
+    await sleep(400);
+    const painted = await evaluate(`(() => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); const r = ws.getRange('C14'); return { shown: r.getDisplayValue(), s: r.getCellStyleData(), at: ws.getSelection().getActiveRange().getA1Notation(), brush: ${GRID}.dataset.formatPainter || null }; })()`);
+    check('format painter copies the format onto the clicked cell, then puts the brush down', painted.shown === '50.00%' && painted.s?.bl === 1 && painted.s?.bg?.rgb?.toLowerCase() === '#fde68a' && painted.at === 'C14' && !painted.brush, JSON.stringify(painted));
+    await evaluate(`void univerAPI.getActiveWorkbook().getActiveSheet().getRange('C12:C14').clear()`);
   }
 
   // --- Autosave happened

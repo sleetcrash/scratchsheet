@@ -29,12 +29,11 @@ const EDITOR_TEXT_COLOR = '#1b1c1f';
 // wrap, number format, format painter...).
 const HIDDEN_MENU_ITEMS = [
   // What stays is split across the floating circles (see the data-fmt-open rules in style.css): font size -/+,
-  // text color, fill | %, $, decimals, date | conditional formatting, borders, merge.
+  // text color, fill | format painter, %, $, decimals, date | conditional formatting, borders, merge.
   // Bold/italic are Ctrl+B / Ctrl+I, undo/redo are Ctrl+Z / Ctrl+Y, number format + alignment
   // live in the right-click menu (see registerContextMenus).
   'univer.command.undo',
   'univer.command.redo',
-  'ui.operation.activate-format-painter',
   'ui.command.clear-formatting',
   'sheet.menu.paste',
   'sheet.command.set-range-font-family',
