@@ -189,22 +189,21 @@ html, body {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* ---------- Toast ---------- */
+/* ---------- Error notice ---------- */
 #toast {
   position: absolute;
   top: 44px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 400;
-  background: var(--accent);
-  color: var(--accent-fg);
+  background: var(--danger);
+  color: #fff;
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 999px;
   box-shadow: var(--shadow);
   pointer-events: none;
 }
-#toast.error { background: var(--danger); color: #fff; }
 
 /* ---------- Univer overrides: one compact row, Sheets-style glyphs ---------- */
 #sheet [data-u-comp="workbench-layout"] { position: relative; }

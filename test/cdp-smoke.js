@@ -454,6 +454,7 @@ async function main() {
   await sleep(400);
   const cleared = await evaluate(`univerAPI.getActiveWorkbook().getActiveSheet().getRange('A1:D3').getValues().flat().every(v => v === null || v === '')`);
   check('one click clears', cleared);
+  check('Clear pops up no notification', await evaluate(`document.getElementById('toast').hidden`));
   // Undo brings it back
   await evaluate(`void univerAPI.undo()`);
   await sleep(400);

@@ -343,7 +343,7 @@ async function persist() {
     await api.saveSheet(snapshot);
   } catch (err) {
     console.error('save failed', err);
-    toast('Save failed', true);
+    showError('Save failed');
   } finally {
     persistInFlight = false;
     if (persistQueued) { persistQueued = false; persist(); }
@@ -539,11 +539,10 @@ $('btn-save').addEventListener('click', async () => {
   try {
     const snapshot = univerAPI.getActiveWorkbook().save();
     const res = await api.exportSheet(snapshot);
-    if (res.ok) toast('Saved ' + res.filePath.split(/[\\/]/).pop());
-    else if (!res.canceled) toast('Save failed: ' + res.error, true);
+    if (!res.ok && !res.canceled) showError('Save failed: ' + res.error);
   } catch (err) {
     console.error(err);
-    toast('Save failed', true);
+    showError('Save failed');
   }
   focusGrid();
 });
@@ -555,10 +554,9 @@ $('btn-clear').addEventListener('click', () => {
     ws.clear();
     ws.getRange(0, 0).activate();
     ws.scrollToCell(0, 0);
-    toast('Cleared (Ctrl+Z to undo)');
   } catch (err) {
     console.error(err);
-    toast('Clear failed', true);
+    showError('Clear failed');
   }
   focusGrid();
 });
@@ -581,11 +579,11 @@ function applyConfig(cfg) {
   theme.setAttribute('aria-label', cfg.darkMode ? 'Light mode' : 'Dark mode');
 }
 
+// The only pop-up notice: something failed (successful actions stay silent).
 let toastTimer = null;
-function toast(msg, isError = false) {
+function showError(msg) {
   const el = $('toast');
   el.textContent = msg;
-  el.classList.toggle('error', isError);
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, 1800);
