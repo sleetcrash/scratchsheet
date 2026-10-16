@@ -13,7 +13,7 @@
     "postinstall": "patch-package"
   },
   "keywords": [],
-  "author": "PatientBird",
+  "author": "sleetcrash",
   "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
@@ -31,7 +31,7 @@
   "productName": "Scratch Sheet",
   "private": true,
   "build": {
-    "appId": "com.patientbird.scratchsheet",
+    "appId": "com.sleetcrash.scratchsheet",
     "productName": "Scratch Sheet",
     "directories": {
       "output": "release"
