@@ -465,6 +465,16 @@ async function main() {
     check('xlsx file written', fs.statSync(out).size > 2000, out);
   }
 
+  // --- A formula filled down keeps its formula in every exported cell (Univer stores the copies as shared formulas)
+  await evaluate(`(async () => { const ws = univerAPI.getActiveWorkbook().getActiveSheet(); ws.getRange('H1:H3').setValues([[1], [2], [3]]); ws.getRange('I1').setValue('=H1*2'); await ws.getRange('I1').autoFill(ws.getRange('I1:I3')); })()`);
+  await sleep(400);
+  {
+    const { buildWorkbook } = require('../electron/export');
+    const xws = buildWorkbook(await evaluate('window.exportSnapshot()')).getWorksheet(1);
+    const filled = ['I2', 'I3'].map((a) => xws.getCell(a).value);
+    check('xlsx export keeps formulas filled down a range', filled[0]?.formula === 'H2*2' && filled[1]?.formula === 'H3*2' && filled[1]?.result === 6, JSON.stringify(filled));
+  }
+
   // --- One click on Clear wipes the sheet
   await evaluate(`document.getElementById('btn-clear').click()`);
   await sleep(400);

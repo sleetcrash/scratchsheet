@@ -124,6 +124,7 @@ const { univer, univerAPI } = createUniver({
 
 // Exposed for debugging / automated tests only.
 window.univerAPI = univerAPI;
+window.exportSnapshot = exportSnapshot;
 
 registerContextMenus();
 registerToolbarMenus();
@@ -534,10 +535,26 @@ window.addEventListener('blur', () => setDragOverlay(false));
 // ---------------------------------------------------------------------------
 // Corner actions
 // ---------------------------------------------------------------------------
+// A formula filled or pasted across a range is stored as a shared formula: the copies carry only an id (si)
+// and no text (f). The .xlsx needs each cell's own formula, so fill them in for the export copy only;
+// the autosaved snapshot keeps Univer's shared form.
+function exportSnapshot() {
+  const wb = univerAPI.getActiveWorkbook();
+  const snapshot = wb.save();
+  for (const sheet of Object.values(snapshot.sheets || {})) {
+    const ws = wb.getSheetBySheetId(sheet.id);
+    for (const [r, row] of Object.entries(sheet.cellData || {})) {
+      for (const [c, cell] of Object.entries(row || {})) {
+        if (cell?.si && !cell.f) cell.f = ws.getRange(Number(r), Number(c)).getFormula();
+      }
+    }
+  }
+  return snapshot;
+}
+
 $('btn-save').addEventListener('click', async () => {
   try {
-    const snapshot = univerAPI.getActiveWorkbook().save();
-    const res = await api.exportSheet(snapshot);
+    const res = await api.exportSheet(exportSnapshot());
     if (!res.ok && !res.canceled) showError('Save failed: ' + res.error);
   } catch (err) {
     console.error(err);
