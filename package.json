@@ -1,6 +1,6 @@
 {
   "name": "scratchsheet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Floating always-on-top spreadsheet post-it for quick math",
   "main": "electron/main.js",
   "scripts": {
